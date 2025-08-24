@@ -1,0 +1,47 @@
+src/
+├─ app/
+│  ├─ App.jsx
+│  ├─ routes.jsx
+├─ assets/
+│  └─ logo.png
+├─ components/
+│  ├─ canvas/
+│  │  ├─ Canvas.jsx
+│  │  ├─ DrawingLayer.jsx
+│  │  ├─ SelectionLayer.jsx
+│  │  ├─ useCanvasEvents.js
+│  ├─ toolbar/
+│  │  ├─ Topbar.jsx
+│  │  ├─ ColorPicker.jsx
+│  │  ├─ StrokeWidthPicker.jsx
+│  ├─ sidebar/
+│  │  ├─ Sidebar.jsx
+│  │  ├─ RightSidebar.jsx
+│  │  └─ PresencePanel.jsx
+│  ├─ common/
+│  │  ├─ Button.jsx
+│  │  ├─ Modal.jsx
+├─ pages/
+│  ├─ HomePage.jsx
+│  ├─ BoardPage.jsx
+├─ store/
+│  ├─ store.js
+│  ├─ boardSlice.js
+│  ├─ uiSlice.js
+├─ services/
+│  ├─ api/
+│  │  └─ boardsApi.js
+│  ├─ realtime/
+│  │  ├─ socket.js
+│  │  ├─ events.js
+├─ utils/
+│  ├─ geometry.js
+│  ├─ id.js
+│  ├─ file.js
+├─ styles/
+│  ├─ globals.css
+├─ tests/
+│  ├─ board.spec.jsx
+│  ├─ store.spec.js
+├─ main.jsx
+├─ index.css

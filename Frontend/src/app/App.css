@@ -1,0 +1,116 @@
+/* App container overall layout */
+.app-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #fafafb;
+  font-family: Inter, Arial, sans-serif;
+}
+
+/* Topbar (Share, Library) */
+.topbar {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+}
+
+/* Main layout: Sidebar + Workspace */
+.main-layout {
+  display: flex;
+  flex: 1;
+  height: 100%;
+}
+
+/* Sidebar styling */
+.sidebar {
+  width: 280px;
+  padding: 16px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(44,62,80,0.06);
+  margin: 24px 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Workspace area (toolbar + canvas) */
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* Toolbar floating at top center */
+.toolbar {
+  position: absolute;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  padding: 8px 18px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(44,62,80,0.10);
+  display: flex;
+  gap: 20px;
+  z-index: 90;
+}
+
+/* Canvas styling */
+.canvas {
+  flex: 1;
+  width: 95%;
+  height: 100%;
+  background: #fafafb;
+  border-radius: 12px;
+  margin-top: 80px;
+  box-shadow: 0 1px 3px rgba(44,62,80,0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Bottom controls (zoom, undo/redo) */
+.bottom-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  background: #fff;
+  padding: 8px 20px;
+  border-radius: 10px;
+  box-shadow: 0 1px 8px rgba(44,62,80,0.10);
+  display: flex;
+  gap: 14px;
+  z-index: 99;
+}
+
+/* Misc button and icon styling */
+button, .icon-btn {
+  background: #f2f2fe;
+  color: #7b83ff;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 14px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover, .icon-btn:hover {
+  background: #e2eafd;
+}
+
+/* Selected state for toolbar/controls */
+.selected {
+  background: #e2eafd;
+  color: #5439fa;
+  border: 2px solid #7b83ff;
+}
+
