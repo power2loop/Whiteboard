@@ -1,0 +1,7 @@
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  z-index: 100;
+}
