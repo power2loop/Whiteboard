@@ -13,6 +13,17 @@ import {
   FaMagic,
 } from "react-icons/fa";
 import "./Topbar.css";
+import { CiUnlock } from "react-icons/ci";
+import { FaRegHandPaper } from "react-icons/fa";
+import { CiLocationArrow1 } from "react-icons/ci";
+import { FaRegSquare } from "react-icons/fa6";
+import { LuTriangle } from "react-icons/lu";
+import { MdOutlineCircle } from "react-icons/md";
+import { LuPencil } from "react-icons/lu";
+import { RiFontColor } from "react-icons/ri";
+import { IoImageOutline } from "react-icons/io5";
+import { LuEraser } from "react-icons/lu";
+import { BsMagic } from "react-icons/bs";
 
 export default function Topbar({ onToolSelect }) {
   const [activeTool, setActiveTool] = useState("select");
@@ -27,7 +38,7 @@ export default function Topbar({ onToolSelect }) {
     <div className="topbar-wrapper">
       {/* Toggle button (always visible at left) */}
       <button className="toggle-btn" onClick={() => setOpen(!open)}>
-        <FaMagic size={18} />
+        <BsMagic size={20} />
       </button>
 
       {/* Toolbar (slides out horizontally) */}
@@ -36,37 +47,37 @@ export default function Topbar({ onToolSelect }) {
           className={activeTool === "lock" ? "active" : ""}
           onClick={() => handleSelect("lock")}
         >
-          <MdLock />
+          <CiUnlock />
         </button>
         <button
           className={activeTool === "hand" ? "active" : ""}
           onClick={() => handleSelect("hand")}
         >
-          <FaHandPaper />
+          <FaRegHandPaper />
         </button>
         <button
           className={activeTool === "select" ? "active" : ""}
           onClick={() => handleSelect("select")}
         >
-          <FaMousePointer />
+          <CiLocationArrow1 />
         </button>
         <button
           className={activeTool === "square" ? "active" : ""}
           onClick={() => handleSelect("square")}
         >
-          <FaSquare />
+          <FaRegSquare />
         </button>
         <button
           className={activeTool === "diamond" ? "active" : ""}
           onClick={() => handleSelect("diamond")}
         >
-          <MdDiamond />
+          <LuTriangle />
         </button>
         <button
           className={activeTool === "circle" ? "active" : ""}
           onClick={() => handleSelect("circle")}
         >
-          <FaRegCircle />
+          <MdOutlineCircle />
         </button>
         <button
           className={activeTool === "arrow" ? "active" : ""}
@@ -84,25 +95,25 @@ export default function Topbar({ onToolSelect }) {
           className={activeTool === "pen" ? "active" : ""}
           onClick={() => handleSelect("pen")}
         >
-          <FaPencilAlt />
+          <LuPencil />
         </button>
         <button
           className={activeTool === "text" ? "active" : ""}
           onClick={() => handleSelect("text")}
         >
-          <FaFont />
+          <RiFontColor />
         </button>
         <button
           className={activeTool === "image" ? "active" : ""}
           onClick={() => handleSelect("image")}
         >
-          <FaImage />
+          <IoImageOutline />
         </button>
         <button
           className={activeTool === "eraser" ? "active" : ""}
           onClick={() => handleSelect("eraser")}
         >
-          <FaEraser />
+          <LuEraser />
         </button>
       </div>
     </div>
