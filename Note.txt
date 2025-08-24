@@ -73,3 +73,5 @@ project-root/
 └── scripts/
     ├── dev.sh                      # run both Frontend and Backend
     └── build.sh
+
+    hello ji
