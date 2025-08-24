@@ -1,0 +1,69 @@
+.sidebar-container {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    display: inline-block;
+    z-index: 30;
+}
+
+/* Button */
+.menu-button {
+    font-size: 22px;
+    background: none;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.menu-button:hover {
+    background: #f0f0f0;
+}
+
+/* Dropdown */
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    /* appear directly below button */
+    right: 0;
+    /* align with button's right edge */
+    margin-top: 8px;
+    width: 220px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 6px 0;
+    z-index: 1000;
+}
+
+.dropdown-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dropdown-menu li {
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    transition: background 0.2s;
+}
+
+.dropdown-menu li:hover {
+    background: #f5f5f5;
+    border-radius: 6px;
+}
+
+/* Special items */
+.dropdown-menu li.highlight {
+    background: #e9fdf1;
+    color: #007a3d;
+}
+
+.dropdown-menu li.command {
+    font-weight: bold;
+    color: #6a0dad;
+}

@@ -1,13 +1,15 @@
 .app {
   height: 200vh;
   width: 200vw;
-  
+
 }
 
 .layout {
   display: grid;
-  grid-template-rows: 60px 1fr 60px;   /* topbar, main area, footer */
-  grid-template-columns: 80px 1fr 100px; /* sidebar, canvas, toolbar */
+  grid-template-rows: 60px 1fr 60px;
+  /* topbar, main area, footer */
+  grid-template-columns: 80px 1fr 100px;
+  /* sidebar, canvas, toolbar */
   grid-template-areas:
     "topbar topbar topbar"
     "sidebar canvas toolbar"
@@ -17,19 +19,19 @@
   background: white;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 /* Assigning areas */
 
 
-.sidebar {
+/* .sidebar {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 1rem;
-}
+} */
 
 .canvas {
   grid-area: canvas;
