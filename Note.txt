@@ -1,47 +1,75 @@
-src/
-├─ app/
-│  ├─ App.jsx
-│  ├─ routes.jsx
-├─ assets/
-│  └─ logo.png
-├─ components/
-│  ├─ canvas/
-│  │  ├─ Canvas.jsx
-│  │  ├─ DrawingLayer.jsx
-│  │  ├─ SelectionLayer.jsx
-│  │  ├─ useCanvasEvents.js
-│  ├─ toolbar/
-│  │  ├─ Topbar.jsx
-│  │  ├─ ColorPicker.jsx
-│  │  ├─ StrokeWidthPicker.jsx
-│  ├─ sidebar/
-│  │  ├─ Sidebar.jsx
-│  │  ├─ RightSidebar.jsx
-│  │  └─ PresencePanel.jsx
-│  ├─ common/
-│  │  ├─ Button.jsx
-│  │  ├─ Modal.jsx
-├─ pages/
-│  ├─ HomePage.jsx
-│  ├─ BoardPage.jsx
-├─ store/
-│  ├─ store.js
-│  ├─ boardSlice.js
-│  ├─ uiSlice.js
-├─ services/
-│  ├─ api/
-│  │  └─ boardsApi.js
-│  ├─ realtime/
-│  │  ├─ socket.js
-│  │  ├─ events.js
-├─ utils/
-│  ├─ geometry.js
-│  ├─ id.js
-│  ├─ file.js
-├─ styles/
-│  ├─ globals.css
-├─ tests/
-│  ├─ board.spec.jsx
-│  ├─ store.spec.js
-├─ main.jsx
-├─ index.css
+project-root/
+├── Backend/
+│   ├── package.json
+│   ├── server.js                # Express + Socket.IO (later)
+│   ├── .env                      # PORT, CORS_ORIGIN, etc.
+│   ├── src/
+│   │   ├── app.js                # express app factory
+│   │   ├── sockets/
+│   │   │   └── whiteboard.socket.js   # rooms, events (JOIN, PATCH, PRESENCE)
+│   │   ├── routes/
+│   │   │   └── boards.route.js   # save/load/export endpoints
+│   │   ├── controllers/
+│   │   │   └── boards.controller.js
+│   │   ├── services/
+│   │   │   └── boards.service.js # file/db service (stub -> JSON files)
+│   │   └── utils/
+│   │       └── validate.js
+│   └── tests/
+│       └── boards.test.js
+
+├── Frontend/
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── index.html
+│   ├── public/
+│   │   └── favicon.ico
+│   └── src/
+│       ├── app/
+│       │   ├── App.jsx
+│       │   └── routes.jsx
+│       ├── pages/
+│       │   ├── Home/
+│       │   │   └── HomePage.jsx
+│       │   └── Board/
+│       │       └── BoardPage.jsx
+│       ├── components/
+│       │   ├── canvas/
+│       │   │   ├── WhiteboardCanvas.jsx
+│       │   │   ├── DrawingLayer.jsx
+│       │   │   ├── SelectionLayer.jsx
+│       │   │   └── useCanvasEvents.js
+│       │   ├── toolbar/
+│       │   │   ├── TopToolbar.jsx
+│       │   │   ├── ColorPicker.jsx
+│       │   │   └── StrokeWidthPicker.jsx
+│       │   ├── sidebar/
+│       │   │   └── RightSidebar.jsx   # properties panel
+│       │   └── common/
+│       │       ├── Button.jsx
+│       │       └── Modal.jsx
+│       ├── store/
+│       │   ├── store.js
+│       │   ├── boardSlice.js
+│       │   └── uiSlice.js
+│       ├── services/
+│       │   ├── api/
+│       │   │   ├── httpClient.js
+│       │   │   └── boardsApi.js       # save/load/export HTTP calls
+│       │   └── realtime/
+│       │       ├── socket.js          # Socket.IO client instance
+│       │       └── events.js          # event names + payload shapes
+│       ├── styles/
+│       │   └── globals.css
+│       ├── utils/
+│       │   ├── geometry.js
+│       │   ├── hitTest.js
+│       │   └── id.js
+│       └── tests/
+│           └── board.spec.jsx
+│
+├── .gitignore
+├── README.md
+└── scripts/
+    ├── dev.sh                      # run both Frontend and Backend
+    └── build.sh
