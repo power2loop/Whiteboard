@@ -1,41 +1,49 @@
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import "./DrawCanvas.css";
 
-export default function DrawCanvas() {
+export default function DrawingBoard() {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [ctx, setCtx] = useState(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    // match canvas to full document size
-    canvas.width = document.documentElement.scrollWidth;
-    canvas.height = document.documentElement.scrollHeight;
+    const appEl = document.querySelector(".app");
 
-    const context = canvas.getContext("2d");
-    context.lineCap = "round";
-    context.lineWidth = 3;
-    context.strokeStyle = "#222"; // pen color
-    setCtx(context);
+    // Full scrollable area size
+    canvas.width = appEl.scrollWidth;
+    canvas.height = appEl.scrollHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.lineCap = "round";
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "black";
   }, []);
 
+  const getCoords = (e) => {
+    return {
+      x: e.clientX + window.scrollX,
+      y: e.clientY + window.scrollY,
+    };
+  };
+
   const startDrawing = (e) => {
-    if (!ctx) return;
-    setIsDrawing(true);
+    const ctx = canvasRef.current.getContext("2d");
+    const { x, y } = getCoords(e);
     ctx.beginPath();
-    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
   };
 
   const draw = (e) => {
-    if (!isDrawing || !ctx) return;
-    ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    if (!isDrawing) return;
+    const ctx = canvasRef.current.getContext("2d");
+    const { x, y } = getCoords(e);
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
   const stopDrawing = () => {
-    if (!ctx) return;
     setIsDrawing(false);
-    ctx.closePath();
   };
 
   return (

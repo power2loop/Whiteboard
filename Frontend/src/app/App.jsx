@@ -7,18 +7,28 @@ import "./App.css";
 
 function App() {
   return (
-    <div className="app-container">
-      <Canvas />
-      {/* <Topbar />
-      <div className="main-layout">
-        <Sidebar />
-        <div className="workspace">
-          <Toolbar />
-          <Canvas />
-        </div>
-      </div>
-      <BottomControls /> */}
+    <div className="app">
+      <div className="layout">
+        <header className="topbar">
+          <Topbar />
+        </header>
 
+        <aside className="sidebar">
+          <Sidebar />
+        </aside>
+
+        <main className="canvas">
+          <Canvas />
+        </main>
+
+        <aside className="toolbar">
+          <Toolbar />
+        </aside>
+
+        <footer className="bottom-controls">
+          <BottomControls />
+        </footer>
+      </div>
     </div>
   );
 }

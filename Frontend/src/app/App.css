@@ -1,117 +1,67 @@
-/* App container overall layout */
-.app-container {
+.app {
   height: 200vh;
   width: 200vw;
-  display: flex;
-  flex-direction: column;
-  position: relative;
   background: #fafafb;
-  font-family: Inter, Arial, sans-serif;
+  overflow: auto;
 }
 
-/* Topbar (Share, Library) */
-.topbar {
-  position: absolute;
-  top: 24px;
-  right: 32px;
-  display: flex;
-  gap: 12px;
-  z-index: 100;
-}
-
-/* Main layout: Sidebar + Workspace */
-.main-layout {
-  display: flex;
-  flex: 1;
+.layout {
+  display: grid;
+  grid-template-rows: 60px 1fr 60px;   /* topbar, main area, footer */
+  grid-template-columns: 80px 1fr 100px; /* sidebar, canvas, toolbar */
+  grid-template-areas:
+    "topbar topbar topbar"
+    "sidebar canvas toolbar"
+    "bottom bottom bottom";
   height: 100%;
+  width: 100%;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
 }
 
-/* Sidebar styling */
-.sidebar {
-  width: 280px;
-  padding: 16px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 2px 8px rgba(44, 62, 80, 0.06);
-  margin: 24px 0 0 24px;
+/* Assigning areas */
+.topbar {
+  grid-area: topbar;
+  background: #f5f5f5;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  padding: 0 1rem;
 }
 
-/* Workspace area (toolbar + canvas) */
-.workspace {
-  flex: 1;
+.sidebar {
+  grid-area: sidebar;
+  background: #e8f0fe;
   display: flex;
   flex-direction: column;
   align-items: center;
-  position: relative;
+  padding: 1rem;
 }
 
-/* Toolbar floating at top center */
-.toolbar {
-  position: absolute;
-  top: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #fff;
-  padding: 8px 18px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(44, 62, 80, 0.10);
-  display: flex;
-  gap: 20px;
-  z-index: 90;
-}
-
-/* Canvas styling */
 .canvas {
-  flex: 1;
-  width: 95%;
-  height: 100%;
-  background: #fafafb;
-  border-radius: 12px;
-  margin-top: 80px;
-  box-shadow: 0 1px 3px rgba(44, 62, 80, 0.06);
-  position: relative;
-  overflow: hidden;
-}
-
-/* Bottom controls (zoom, undo/redo) */
-.bottom-controls {
-  position: absolute;
-  left: 50%;
-  bottom: 32px;
-  transform: translateX(-50%);
+  grid-area: canvas;
   background: #fff;
-  padding: 8px 20px;
-  border-radius: 10px;
-  box-shadow: 0 1px 8px rgba(44, 62, 80, 0.10);
   display: flex;
-  gap: 14px;
-  z-index: 99;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
 }
 
-/* Misc button and icon styling */
-button,
-.icon-btn {
-  background: #f2f2fe;
-  color: #7b83ff;
-  border: none;
-  border-radius: 7px;
-  padding: 8px 14px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background 0.2s;
+.toolbar {
+  grid-area: toolbar;
+  background: #f0f8ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
 }
 
-button:hover,
-.icon-btn:hover {
-  background: #e2eafd;
-}
-
-/* Selected state for toolbar/controls */
-.selected {
-  background: #e2eafd;
-  color: #5439fa;
-  border: 2px solid #7b83ff;
+.bottom-controls {
+  grid-area: bottom;
+  background: #f5f5f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }

@@ -3,7 +3,7 @@ import { TfiAlignLeft } from "react-icons/tfi";
 
 const topbar = () => {
   return (
-    <div><TfiAlignLeft /></div>
+    <div className='topbar'><TfiAlignLeft /></div>
   )
 }
 
