@@ -1,33 +1,16 @@
 import React, { useState } from "react";
-import { MdLock, MdDiamond, MdArrowRightAlt } from "react-icons/md";
-import {
-  FaHandPaper,
-  FaMousePointer,
-  FaSquare,
-  FaRegCircle,
-  FaMinus,
-  FaPencilAlt,
-  FaFont,
-  FaImage,
-  FaEraser,
-  FaMagic,
-} from "react-icons/fa";
-import "./Topbar.css";
-import { CiUnlock } from "react-icons/ci";
+import { MdArrowRightAlt, MdOutlineCircle } from "react-icons/md";
+import { FaMinus } from "react-icons/fa";
+import { CiUnlock, CiLocationArrow1 } from "react-icons/ci";
 import { FaRegHandPaper } from "react-icons/fa";
-import { CiLocationArrow1 } from "react-icons/ci";
 import { FaRegSquare } from "react-icons/fa6";
-import { LuTriangle } from "react-icons/lu";
-import { MdOutlineCircle } from "react-icons/md";
-import { LuPencil } from "react-icons/lu";
+import { LuTriangle, LuPencil, LuEraser } from "react-icons/lu";
 import { RiFontColor } from "react-icons/ri";
 import { IoImageOutline } from "react-icons/io5";
-import { LuEraser } from "react-icons/lu";
-import { BsMagic } from "react-icons/bs";
+import "./Topbar.css";
 
 export default function Topbar({ onToolSelect }) {
   const [activeTool, setActiveTool] = useState("select");
-  const [open, setOpen] = useState(false);
 
   const handleSelect = (tool) => {
     setActiveTool(tool);
@@ -36,13 +19,7 @@ export default function Topbar({ onToolSelect }) {
 
   return (
     <div className="topbar-wrapper">
-      {/* Toggle button (always visible at left) */}
-      <button className="toggle-btn" onClick={() => setOpen(!open)}>
-        <BsMagic size={20} />
-      </button>
-
-      {/* Toolbar (slides out horizontally) */}
-      <div className={`toolbar ${open ? "open" : ""}`}>
+      <div className="toolbar always-visible">
         <button
           className={activeTool === "lock" ? "active" : ""}
           onClick={() => handleSelect("lock")}

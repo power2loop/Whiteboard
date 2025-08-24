@@ -1,7 +1,7 @@
 .sidebar-container {
     position: fixed;
     top: 15px;
-    right: 15px;
+    left: 20px;
     display: inline-block;
     z-index: 30;
 }
@@ -26,7 +26,7 @@
     position: absolute;
     top: 100%;
     /* appear directly below button */
-    right: 0;
+    left: 20;
     /* align with button's right edge */
     margin-top: 8px;
     width: 220px;
