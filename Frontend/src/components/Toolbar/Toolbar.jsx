@@ -16,7 +16,7 @@
 //   const strokeStyles = ["solid", "dashed", "dotted"];
 //   const sloppinessOptions = ["none", "sloppy", "high"];
 //   const edgesOptions = ["sharp", "rounded"];
-  
+
 //   return (
 //     <div className="toolbar">
 //       <section>
@@ -29,7 +29,7 @@
 //           ></button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Background</div>
 //         {backgroundColors.map(color => (
@@ -40,7 +40,7 @@
 //           ></button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Stroke Width</div>
 //         {strokeWidths.map(width => (
@@ -53,7 +53,7 @@
 //           </button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Stroke Style</div>
 //         {strokeStyles.map(style => (
@@ -66,7 +66,7 @@
 //           </button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Sloppiness</div>
 //         {sloppinessOptions.map(option => (
@@ -79,7 +79,7 @@
 //           </button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Edges</div>
 //         {edgesOptions.map(option => (
@@ -92,7 +92,7 @@
 //           </button>
 //         ))}
 //       </section>
-      
+
 //       <section>
 //         <div>Opacity</div>
 //         <input
@@ -103,7 +103,7 @@
 //           onChange={e => setOpacity(Number(e.target.value))}
 //         />
 //       </section>
-      
+
 //       <section>
 //         <div>Layers</div>
 //         <button>↓</button>
@@ -117,6 +117,7 @@
 
 // export default Toolbar;
 import React from 'react'
+import './Toolbar.css'
 
 function Toolbar() {
   return (
