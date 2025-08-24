@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import "./DrawCanvas.css"; // import CSS file
+import "./DrawCanvas.css";
 
 export default function DrawCanvas() {
   const canvasRef = useRef(null);
@@ -8,43 +8,44 @@ export default function DrawCanvas() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    canvas.width = 600;
-    canvas.height = 400;
+    // match canvas to full document size
+    canvas.width = document.documentElement.scrollWidth;
+    canvas.height = document.documentElement.scrollHeight;
+
     const context = canvas.getContext("2d");
     context.lineCap = "round";
     context.lineWidth = 3;
-    context.strokeStyle = "#222"; // dark gray pen
+    context.strokeStyle = "#222"; // pen color
     setCtx(context);
   }, []);
 
   const startDrawing = (e) => {
+    if (!ctx) return;
     setIsDrawing(true);
     ctx.beginPath();
     ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
   };
 
   const draw = (e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !ctx) return;
     ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
     ctx.stroke();
   };
 
   const stopDrawing = () => {
+    if (!ctx) return;
     setIsDrawing(false);
     ctx.closePath();
   };
 
   return (
-    <div className="canvas-container">
-      <h2>Simple Drawing Board 🎨</h2>
-      <canvas
-        ref={canvasRef}
-        className="drawing-canvas"
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="drawing-canvas"
+      onMouseDown={startDrawing}
+      onMouseMove={draw}
+      onMouseUp={stopDrawing}
+      onMouseLeave={stopDrawing}
+    />
   );
 }

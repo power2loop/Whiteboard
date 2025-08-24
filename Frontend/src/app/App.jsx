@@ -8,7 +8,8 @@ import "./App.css";
 function App() {
   return (
     <div className="app-container">
-      <Topbar />
+      <Canvas />
+      {/* <Topbar />
       <div className="main-layout">
         <Sidebar />
         <div className="workspace">
@@ -16,7 +17,8 @@ function App() {
           <Canvas />
         </div>
       </div>
-      <BottomControls />
+      <BottomControls /> */}
+
     </div>
   );
 }
