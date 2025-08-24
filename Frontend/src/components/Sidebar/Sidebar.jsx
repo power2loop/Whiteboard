@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./Sidebar.css";
+import logo from "../../assets/logo.svg";
+import { RiMenu2Line } from "react-icons/ri";
 
 const Sidebar = () => {
   const [open, setOpen] = useState(false);
@@ -25,8 +27,9 @@ const Sidebar = () => {
   return (
     <div className="sidebar-container" ref={menuRef}>
       {/* Button */}
+      <img className="logo" src={logo} alt="" />
       <button className="menu-button" onClick={toggleMenu}>
-        ☰
+        <RiMenu2Line />
       </button>
 
       {/* Dropdown */}
