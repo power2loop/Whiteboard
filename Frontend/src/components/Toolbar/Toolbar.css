@@ -1,0 +1,200 @@
+.toolbar-container {
+    position: fixed;
+    top: 100px;
+    left: 20px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fff;
+    border-radius: 18px;
+    padding: 16px 18px 16px 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e5e7eb;
+    width: 200px;
+    height: 340px;
+
+    overflow-y: scroll;
+    /* ✅ enable vertical scroll */
+    overflow-x: hidden;
+    /* ✅ prevent horizontal scroll */
+}
+
+/* Sections */
+.toolbar-section {
+    margin-bottom: 12px;
+}
+
+.toolbar-label {
+    font-size: 14px;
+    color: #6b7280;
+    font-weight: 500;
+    margin-bottom: 7px;
+    letter-spacing: 0.02em;
+}
+
+/* Color buttons */
+.color-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    transition: border 0.18s, box-shadow 0.18s;
+}
+
+.color-btn.selected,
+.option-btn.selected {
+    border: 2px solid #6366f1;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.09);
+}
+
+.bg-btn {
+    border-style: dashed;
+}
+
+/* Option buttons */
+.option-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 3px;
+}
+
+.option-btn {
+    background: #f3f4f6;
+    border: 2px solid transparent;
+    border-radius: 9px;
+    font-size: 18px;
+    color: #374151;
+    padding: 5px 15px;
+    min-width: 36px;
+    min-height: 33px;
+    cursor: pointer;
+    transition: border 0.18s, background 0.18s;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.option-btn.selected {
+    background: #eef2ff;
+    color: #4f46e5;
+    border-color: #6366f1;
+}
+
+.option-btn:focus,
+.color-btn:focus {
+    outline: none;
+    border-color: #6366f1;
+}
+
+/* Slider (Opacity) */
+.slider-row {
+    margin: 6px 0;
+}
+
+.toolbar-slider {
+    width: 100%;
+    cursor: pointer;
+}
+
+.opacity-values {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* Actions */
+.action-group {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 16px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background 0.2s, border 0.2s;
+}
+
+.action-btn:hover {
+    background: #e5e7eb;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .toolbar-container {
+        top: 60px;
+        left: 6px;
+        min-width: 150px;
+        max-width: 170px;
+        padding: 10px 9px;
+        border-radius: 14px;
+    }
+
+    .toolbar-label {
+        font-size: 13px;
+    }
+
+    .color-btn,
+    .option-btn {
+        width: 22px;
+        height: 22px;
+        font-size: 16px;
+        min-width: 26px;
+        min-height: 23px;
+        padding: 3px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .toolbar-container {
+        top: 16px;
+        left: 4px;
+        padding: 6px 3px 8px 2px;
+        min-width: 98px;
+        max-width: 130px;
+        border-radius: 10px;
+    }
+
+    .toolbar-label {
+        font-size: 12px;
+    }
+}
+
+/* Scrollbar styling */
+.toolbar-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.toolbar-container::-webkit-scrollbar-track {
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+.toolbar-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 6px;
+}
+
+.toolbar-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Firefox scrollbar */
+.toolbar-container {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f9fafb;
+}
