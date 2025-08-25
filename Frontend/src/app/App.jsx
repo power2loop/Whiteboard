@@ -14,7 +14,7 @@ function App() {
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
 
-    // Hide toolbar for lock, hand, select
+    // Show toolbar only for shape tools
     if (["lock", "hand", "select", "text", "image", "eraser"].includes(tool)) {
       setShowToolbar(false);
     } else {
@@ -33,11 +33,12 @@ function App() {
           <Sidebar />
         </aside>
 
-        <aside className='rightbar'>
+        <aside className="rightbar">
           <Rightbar />
         </aside>
 
         <main className="canvas">
+          {/* ✅ Pass selectedTool into Canvas */}
           <Canvas selectedTool={selectedTool} />
         </main>
 
