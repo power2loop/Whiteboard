@@ -2,6 +2,13 @@ import React, { useState, useRef, useEffect } from "react";
 import "./Sidebar.css";
 import logo from "../../assets/logo.svg";
 import { RiMenu2Line } from "react-icons/ri";
+import { FaRegFolderOpen } from "react-icons/fa";
+import { MdOutlineSaveAlt } from "react-icons/md";
+import { TiDownload } from "react-icons/ti";
+import { GrGroup } from "react-icons/gr";
+import { FiHelpCircle } from "react-icons/fi";
+import { TbHttpDelete } from "react-icons/tb";
+
 
 const Sidebar = () => {
   const [open, setOpen] = useState(false);
@@ -36,13 +43,14 @@ const Sidebar = () => {
       {open && (
         <div className="dropdown-menu">
           <ul>
-            <li>Open</li>
-            <li>Save to...</li>
-            <li>Export image...</li>
-            <li className="highlight">Live collaboration...</li>
-            <li className="command">Command palette</li>
-            <li>Find on canvas</li>
-            <li>Help</li>
+            <li><FaRegFolderOpen /><span>Open</span></li>
+            <li><MdOutlineSaveAlt /><span>Save to...</span></li>
+            <li><TiDownload /><span>Export image...</span></li>
+            <li><GrGroup /><span>Live collaboration...</span></li>
+            {/* <li><span>Command palette</span></li> */}
+            {/* <li><span>Find on canvas</span></li> */}
+            <li><FiHelpCircle /><span>Help</span></li>
+            <li><TbHttpDelete /><span>Reset the canvas</span></li>
           </ul>
         </div>
       )}

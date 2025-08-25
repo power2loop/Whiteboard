@@ -5,6 +5,7 @@
     z-index: 30;
     display: flex;
     gap: 12px;
+    font-family: "poppins";
 }
 
 .control-group {

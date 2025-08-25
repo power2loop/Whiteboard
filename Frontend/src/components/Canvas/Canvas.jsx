@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import "./DrawCanvas.css";
+import "./Canvas.css";
 
 export default function DrawingBoard() {
   const canvasRef = useRef(null);
