@@ -1,8 +1,18 @@
 import React from 'react';
 import './Toolbar.css';
+import { TfiLayoutLineSolid } from "react-icons/tfi";
+import { CgBorderStyleDashed } from "react-icons/cg";
+import { CgBorderStyleDotted } from "react-icons/cg";
+import { PiWaveSineDuotone } from "react-icons/pi";
+import { GoCopy } from "react-icons/go";
+import { AiOutlineDelete } from "react-icons/ai";
+import { IoIosLink } from "react-icons/io";
 
-const strokeColors = ['#191919', '#EF4444', '#22C55E', '#3B82F6', '#F59E42', '#191919'];
-const backgroundColors = ['#fff', '#F8A5B3', '#BBF7D0', '#93E7FF', '#FDE68A', 'transparent'];
+
+
+
+const strokeColors = ['#191919', '#EF4444', '#22C55E', '#3B82F6', '#F59E42', '#00fffbff'];
+const backgroundColors = ['#e8e8e8ff', '#F8A5B3', '#BBF7D0', '#93E7FF', '#FDE68A', '#22C55E'];
 
 const Toolbar = () => {
     return (
@@ -27,17 +37,22 @@ const Toolbar = () => {
             <div className="toolbar-section">
                 <div className="toolbar-label">Stroke width</div>
                 <div className="option-group">
-                    <button className="option-btn selected">−</button>
-                    <button className="option-btn">−</button>
+                    <button className="option-btn stroke-width thin"></button>
+                    <button className="option-btn stroke-width medium"></button>
+                    <button className="option-btn stroke-width thick"></button>
                 </div>
             </div>
+
             <div className="toolbar-section">
                 <div className="toolbar-label">Stroke style</div>
                 <div className="option-group">
-                    <button className="option-btn selected">─</button>
-                    <button className="option-btn">····</button>
+                    <button className="option-btn stroke-style"><TfiLayoutLineSolid /></button>
+                    <button className="option-btn stroke-style"><CgBorderStyleDashed /></button>
+                    <button className="option-btn stroke-style"><CgBorderStyleDotted /></button>
+                    <button className="option-btn stroke-style"><PiWaveSineDuotone /></button>
                 </div>
             </div>
+
             <div className="toolbar-section">
                 <div className="toolbar-label">Opacity</div>
                 <div className="slider-row">
@@ -58,9 +73,9 @@ const Toolbar = () => {
             <div className="toolbar-section">
                 <div className="toolbar-label">Actions</div>
                 <div className="action-group">
-                    <button className="action-btn" title="Copy">⧉</button>
-                    <button className="action-btn" title="Delete">🗑️</button>
-                    <button className="action-btn" title="Link">🔗</button>
+                    <button className="action-btn" title="Copy"><GoCopy /></button>
+                    <button className="action-btn" title="Delete"><AiOutlineDelete /></button>
+                    <button className="action-btn" title="Link"><IoIosLink /></button>
                 </div>
             </div>
         </div>
