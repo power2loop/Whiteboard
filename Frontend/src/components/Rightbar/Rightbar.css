@@ -1,0 +1,116 @@
+.rightbar-container {
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    z-index: 30;
+    display: flex;
+    background: white;
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+    gap: 4px;
+}
+
+.btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    min-height: 40px;
+    white-space: nowrap;
+}
+
+.btn-share {
+    background: #007bff;
+    color: white;
+}
+
+.btn-share:hover {
+    background: #312ecb;
+    transform: translateY(-1px);
+}
+
+.btn-library {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.btn-library:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+.btn-text {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.btn-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* .badge {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+} */
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .rightbar-container {
+        top: 10px;
+        right: 10px;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .btn {
+        padding: 10px 12px;
+        min-height: 44px;
+        /* Better touch targets on mobile */
+    }
+
+    .btn-text {
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 480px) {
+    .rightbar-container {
+        top: 8px;
+        right: 8px;
+        padding: 3px;
+    }
+
+    .btn {
+        padding: 8px 10px;
+        gap: 4px;
+    }
+
+    .btn-text {
+        font-size: 12px;
+    }
+
+    .btn-icon {
+        font-size: 14px;
+    }
+}

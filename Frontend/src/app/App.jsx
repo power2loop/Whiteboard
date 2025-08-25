@@ -3,6 +3,7 @@ import Toolbar from '../components/Toolbar/Toolbar';
 import Canvas from '../components/Canvas/Canvas';
 import BottomControls from '../components/BottomControls/BottomControls';
 import Topbar from '../components/Topbar/Topbar';
+import Rightbar from '../components/Rightbar/Rightbar';
 import "./App.css";
 
 function App() {
@@ -16,7 +17,7 @@ function App() {
         <aside className="sidebar">
           <Sidebar />
         </aside>
-
+        <aside className='rightbar'><Rightbar /></aside>
         <main className="canvas">
           <Canvas />
         </main>

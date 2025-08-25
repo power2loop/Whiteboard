@@ -1,0 +1,112 @@
+.bottomcontrols-container {
+    position: fixed;
+    bottom: 15px;
+    left: 20px;
+    z-index: 30;
+    display: flex;
+    gap: 12px;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 4px 10px;
+    gap: 4px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    color: #000000;
+    font-size: 20px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-weight: 500;
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn:hover {
+    background: #007bff;
+    outline: none;
+    color: whitesmoke;
+}
+
+.control-btn[aria-label=Undo],
+.control-btn[aria-label=Redo] {
+    color: #000000;
+}
+
+.control-btn[aria-label=Undo]:hover,
+.control-btn[aria-label=Redo]:hover {
+    color: whitesmoke;
+}
+
+.control-value {
+    margin: 0 2px;
+    font-size: 16px;
+    color: #374151;
+    font-weight: 500;
+    min-width: 48px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .bottomcontrols-container {
+        left: 10px;
+        bottom: 10px;
+        gap: 8px;
+    }
+
+    .control-group {
+        padding: 3px 8px;
+        gap: 2px;
+    }
+
+    .control-btn {
+        font-size: 18px;
+        padding: 7px 10px;
+        min-width: 36px;
+        min-height: 36px;
+    }
+
+    .control-value {
+        font-size: 15px;
+        min-width: 38px;
+    }
+}
+
+@media (max-width: 480px) {
+    .bottomcontrols-container {
+        left: 6px;
+        bottom: 6px;
+        gap: 4px;
+        flex-direction: column;
+    }
+
+    .control-group {
+        padding: 2px 6px;
+        gap: 1px;
+    }
+
+    .control-btn {
+        font-size: 16px;
+        padding: 6px 8px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .control-value {
+        font-size: 14px;
+        min-width: 32px;
+    }
+}
