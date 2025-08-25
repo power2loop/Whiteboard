@@ -15,7 +15,7 @@ function App() {
     setSelectedTool(tool);
 
     // Hide toolbar for lock, hand, select
-    if (["lock", "hand", "select"].includes(tool)) {
+    if (["lock", "hand", "select", "text", "image", "eraser"].includes(tool)) {
       setShowToolbar(false);
     } else {
       setShowToolbar(true);
