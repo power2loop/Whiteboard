@@ -207,14 +207,22 @@ export default function Canvas({ selectedTool }) {
   }
 
   // Intersection logic
-  function shapeIntersectsEraser(shape, eraserPts) {
-    if (shape.tool === "pen") {
-      return shape.points.some(
-        pt1 => eraserPts.some(pt2 => distance(pt1, pt2) < ERASER_RADIUS)
-      );
+function shapeIntersectsEraser(shape, eraserPts) {
+  if (shape.tool === "pen") {
+    // Check if any eraser point is within ERASER_RADIUS of any pen segment
+    for (let i = 0; i < shape.points.length - 1; i++) {
+      const p1 = shape.points[i];
+      const p2 = shape.points[i + 1];
+      for (const ep of eraserPts) {
+        if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) {
+          return true;
+        }
+      }
     }
-    return eraserPts.some(ep => isPointInShape(shape, ep));
+    return false;
   }
+  return eraserPts.some(ep => isPointInShape(shape, ep));
+}
 
   function distance(p1, p2) { return Math.hypot(p1.x - p2.x, p1.y - p2.y); }
   function isPointInShape(shape, point) {
