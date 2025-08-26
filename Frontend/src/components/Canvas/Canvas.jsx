@@ -2,12 +2,14 @@ import { useRef, useEffect, useState } from "react";
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
-const ERASER_RADIUS = 2; // Thickness for erase checking
+
+const ERASER_RADIUS = 2;
 
 export default function Canvas({ selectedTool }) {
   const canvasRef = useRef(null);
   const [shapes, setShapes] = useState([]);
   const [penPoints, setPenPoints] = useState([]);
+  const [laserPoints, setLaserPoints] = useState([]);
   const [eraserPath, setEraserPath] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState(null);
@@ -23,22 +25,41 @@ export default function Canvas({ selectedTool }) {
     }
     redraw();
     // eslint-disable-next-line
-  }, [shapes, penPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint]);
+  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint]);
 
-  // Cursor with small outlined circle for eraser
+  // Fade out laser strokes automatically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShapes(shapes =>
+        shapes
+          .map(shape => {
+            if (shape.tool === "laser" && shape.expiration) {
+              const now = Date.now();
+              const timeLeft = shape.expiration - now;
+              if (timeLeft <= 0) return null;
+              return {
+                ...shape,
+                opacity: Math.max(0, Math.min(1, timeLeft / 2000)),
+              };
+            }
+            return shape;
+          })
+          .filter(Boolean)
+      );
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-
     if (selectedTool === "pen") {
       canvas.style.cursor =
-        "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15.4998 5.49994L18.3282 8.32837M3 20.9997L3.04745 20.6675C3.21536 19.4922 3.29932 18.9045 3.49029 18.3558C3.65975 17.8689 3.89124 17.4059 4.17906 16.9783C4.50341 16.4963 4.92319 16.0765 5.76274 15.237L17.4107 3.58896C18.1918 2.80791 19.4581 2.80791 20.2392 3.58896C21.0202 4.37001 21.0202 5.63634 20.2392 6.41739L8.37744 18.2791C7.61579 19.0408 7.23497 19.4216 6.8012 19.7244C6.41618 19.9932 6.00093 20.2159 5.56398 20.3879C5.07171 20.5817 4.54375 20.6882 3.48793 20.9012L3 20.9997Z\"/></svg>') 0 20, auto";
+        "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\"><path d=\"M15.4998 5.49994L18.3282 8.32837M3 20.9997L3.04745 20.6675C3.21536 19.4922 3.29932 18.9045 3.49029 18.3558C3.65975 17.8689 3.89124 17.4059 4.17906 16.9783C4.50341 16.4963 4.92319 16.0765 5.76274 15.237L17.4107 3.58896C18.1918 2.80791 19.4581 2.80791 20.2392 3.58896C21.0202 4.37001 21.0202 5.63634 20.2392 6.41739L8.37744 18.2791C7.61579 19.0408 7.23497 19.4216 6.8012 19.7244C6.41618 19.9932 6.00093 20.2159 5.56398 20.3879C5.07171 20.5817 4.54375 20.6882 3.48793 20.9012L3 20.9997Z\"/></svg>') 0 20, auto";
     } else if (selectedTool === "eraser") {
       canvas.style.cursor =
-        "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" /></svg>') 8 8, auto";
-    } else if (selectedTool === "rectangle") {
-      canvas.style.cursor = "crosshair";
-    } else if (selectedTool === "hand") {
-      canvas.style.cursor ="url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.2607 12.4008C19.3774 11.2626 20.4357 10.6935 20.7035 10.0084C20.9359 9.41393 20.8705 8.74423 20.5276 8.20587C20.1324 7.58551 18.984 7.23176 16.6872 6.52425L8.00612 3.85014C6.06819 3.25318 5.09923 2.95471 4.45846 3.19669C3.90068 3.40733 3.46597 3.85584 3.27285 4.41993C3.051 5.06794 3.3796 6.02711 4.03681 7.94545L6.94793 16.4429C7.75632 18.8025 8.16052 19.9824 8.80519 20.3574C9.36428 20.6826 10.0461 20.7174 10.6354 20.4507C11.3149 20.1432 11.837 19.0106 12.8813 16.7454L13.6528 15.0719C13.819 14.7113 13.9021 14.531 14.0159 14.3736C14.1168 14.2338 14.2354 14.1078 14.3686 13.9984C14.5188 13.8752 14.6936 13.7812 15.0433 13.5932L17.2607 12.4008Z\"/></svg>') 10 10, auto";
+        "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"none\" stroke=\"black\" stroke-width=\"2\"/></svg>') 8 8, auto";
+    } else if (selectedTool === "laser") {
+      canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" xml:space=\"preserve\" width=\"24\" height=\"24\" viewBox=\"0 0 6.827 6.827\" style=\"shape-rendering:geometricPrecision;text-rendering:geometricPrecision;image-rendering:optimizeQuality;fill-rule:evenodd;clip-rule:evenodd\"><defs><style>.fil3{fill:%23414141;fill-rule:nonzero}</style></defs><g id=\"Layer_x0020_1\"><path d=\"m2.897 3.462-.5-.549.079-.071-.08.071a.107.107 0 0 1 .016-.157l.309-.28.071.08-.071-.08a.107.107 0 0 1 .157.016l.503.557-.482.412-.002.001z\" style=\"fill:%23959595;fill-rule:nonzero\"/><path d=\"m4.625 5.377-1.73-1.913.002-.002.484-.413L5.1 4.948l-.474.43z\" style=\"fill:%23676767;fill-rule:nonzero\"/><path d=\"m5.575 5.648-.31.279-.07-.079.07.08a.107.107 0 0 1-.156-.016l-.484-.535.474-.43.49.544-.078.071.079-.071a.107.107 0 0 1-.015.157z\" style=\"fill:%232f2f2f;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M3.27 1.342a.807.807 0 0 1-.295.293.808.808 0 0 1 .294.293.808.808 0 0 1 .294-.293.808.808 0 0 1-.294-.293z\"/><path d=\"M3.27 2.358c-.105-.352-.464-.708-.693-.708.357-.137.575-.429.692-.778.117.35.335.64.692.778-.229 0-.587.356-.692.708z\" style=\"fill:%23bcbcbc;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M1.788 1.858a.582.582 0 0 1-.212.21.582.582 0 0 1 .212.212A.582.582 0 0 1 2 2.069a.582.582 0 0 1-.212-.211z\"/><path d=\"M1.788 2.59c-.076-.254-.334-.51-.499-.51.257-.1.414-.31.499-.561.084.252.241.462.498.56-.165 0-.423.257-.498.51z\" style=\"fill:%23a0a0a0;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M1.555 3.314a.404.404 0 0 1-.147.146.404.404 0 0 1 .147.147.404.404 0 0 1 .147-.147.404.404 0 0 1-.147-.146z\"/><path d=\"M1.555 3.822c-.052-.176-.231-.355-.346-.355a.594.594 0 0 0 .346-.389c.059.175.168.321.346.39-.114 0-.293.178-.346.354z\" style=\"fill:%23868686;fill-rule:nonzero\"/></g><path style=\"fill:none\" d=\"M0 0h6.827v6.827H0z\"/></svg>') 3 3, auto";
     } else {
       canvas.style.cursor = "crosshair";
     }
@@ -52,7 +73,6 @@ export default function Canvas({ selectedTool }) {
     };
   }
 
-  // Interpolate points helper for eraser path
   function interpolatePoints(p1, p2, spacing = 2) {
     const points = [];
     const dist = distance(p1, p2);
@@ -76,6 +96,9 @@ export default function Canvas({ selectedTool }) {
       setEraserPath([point]);
       setMarkedIds([]);
       setIsDrawing(true);
+    } else if (selectedTool === "laser") {
+      setLaserPoints([point]);
+      setIsDrawing(true);
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
       setIsDrawing(true);
       setStartPoint(point);
@@ -88,17 +111,16 @@ export default function Canvas({ selectedTool }) {
     const point = getRelativeCoords(e);
 
     if (selectedTool === "pen") {
-      setPenPoints((ps) => [...ps, point]);
+      setPenPoints(ps => [...ps, point]);
+    } else if (selectedTool === "laser") {
+      setLaserPoints(ls => [...ls, point]);
     } else if (selectedTool === "eraser") {
-      setEraserPath((p) => {
+      setEraserPath(p => {
         if (p.length === 0) return [point];
         const lastPoint = p[p.length - 1];
         const newPoints = interpolatePoints(lastPoint, point);
         return [...p, ...newPoints, point];
       });
-
-      // Mark shapes intersected by eraser path (note eraserPath state update is async,
-      // so combine current eraserPath with new point for immediate check)
       const eraserPointsForCheck = [...eraserPath, point];
       setMarkedIds(
         shapes
@@ -117,6 +139,17 @@ export default function Canvas({ selectedTool }) {
     if (selectedTool === "pen" && penPoints.length > 0) {
       setShapes([...shapes, { tool: "pen", points: penPoints }]);
       setPenPoints([]);
+    } else if (selectedTool === "laser" && laserPoints.length > 1) {
+      setShapes([
+        ...shapes,
+        {
+          tool: "laser",
+          points: laserPoints,
+          opacity: 1,
+          expiration: Date.now() + 2000, // fade after 2 seconds
+        },
+      ]);
+      setLaserPoints([]);
     } else if (selectedTool === "eraser" && eraserPath.length > 0) {
       setShapes(shapes.filter((_, i) => !markedIds.includes(i)));
       setMarkedIds([]);
@@ -137,6 +170,8 @@ export default function Canvas({ selectedTool }) {
       const fade = markedIds.includes(idx);
       if (shape.tool === "pen") {
         drawPenStroke(ctx, shape.points, false, fade);
+      } else if (shape.tool === "laser") {
+        drawLaserStroke(ctx, shape.points, shape.opacity);
       } else {
         drawShape(ctx, shape.start, shape.end, shape.tool, false, fade);
       }
@@ -144,6 +179,9 @@ export default function Canvas({ selectedTool }) {
 
     if (isDrawing && selectedTool === "pen" && penPoints.length) {
       drawPenStroke(ctx, penPoints, true, false);
+    }
+    if (isDrawing && selectedTool === "laser" && laserPoints.length) {
+      drawLaserStroke(ctx, laserPoints, 1);
     }
     if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
       drawShape(ctx, startPoint, currentPoint, selectedTool, true, false);
@@ -162,6 +200,24 @@ export default function Canvas({ selectedTool }) {
     });
     ctx.strokeStyle = isPreview ? "#888" : faded ? "rgba(128,128,128,0.35)" : "#333";
     ctx.lineWidth = isPreview ? 1.5 : faded ? 3.5 : 2.5;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLaserStroke(ctx, points, opacity = 1) {
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.beginPath();
+    points.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.strokeStyle = `rgba(255,0,0,${opacity})`;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = "red";
+    ctx.shadowBlur = 50;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.stroke();
@@ -217,15 +273,11 @@ export default function Canvas({ selectedTool }) {
   function drawArrowHead(ctx, from, to, headlen = 16) {
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
     ctx.moveTo(to.x, to.y);
-    ctx.lineTo(
-      to.x - headlen * Math.cos(angle - Math.PI / 6),
-      to.y - headlen * Math.sin(angle - Math.PI / 6)
-    );
+    ctx.lineTo(to.x - headlen * Math.cos(angle - Math.PI / 6),
+      to.y - headlen * Math.sin(angle - Math.PI / 6));
     ctx.moveTo(to.x, to.y);
-    ctx.lineTo(
-      to.x - headlen * Math.cos(angle + Math.PI / 6),
-      to.y - headlen * Math.sin(angle + Math.PI / 6)
-    );
+    ctx.lineTo(to.x - headlen * Math.cos(angle + Math.PI / 6),
+      to.y - headlen * Math.sin(angle + Math.PI / 6));
   }
 
   function drawEraserPath(ctx, points) {
@@ -243,17 +295,14 @@ export default function Canvas({ selectedTool }) {
     ctx.restore();
   }
 
-  // Intersection logic
   function shapeIntersectsEraser(shape, eraserPts) {
-    if (shape.tool === "pen") {
-      // Check each segment of pen stroke against eraser points
-      for (let i = 0; i < shape.points.length - 1; i++) {
-        const p1 = shape.points[i];
-        const p2 = shape.points[i + 1];
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      const points = shape.tool === "pen" ? shape.points : shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
         for (const ep of eraserPts) {
-          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) {
-            return true;
-          }
+          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
         }
       }
       return false;
@@ -274,8 +323,8 @@ export default function Canvas({ selectedTool }) {
       case "diamond":
         return pointInDiamond(point, start, end);
       case "circle":
-        const cx = (start.x + end.x) / 2,
-          cy = (start.y + end.y) / 2;
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
         const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
         return distance(point, { x: cx, y: cy }) <= r;
       case "line":
@@ -287,46 +336,30 @@ export default function Canvas({ selectedTool }) {
   }
 
   function pointInRect(point, start, end) {
-    const minX = Math.min(start.x, end.x),
-      maxX = Math.max(start.x, end.x);
-    const minY = Math.min(start.y, end.y),
-      maxY = Math.max(start.y, end.y);
+    const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
+    const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
     return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
   }
 
   function pointInDiamond(point, start, end) {
-    const cx = (start.x + end.x) / 2,
-      cy = (start.y + end.y) / 2;
-    const w = Math.abs(end.x - start.x) / 2,
-      h = Math.abs(end.y - start.y) / 2;
-    const dx = Math.abs(point.x - cx),
-      dy = Math.abs(point.y - cy);
+    const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+    const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
+    const dx = Math.abs(point.x - cx), dy = Math.abs(point.y - cy);
     if (w === 0 || h === 0) return false;
     return dx / w + dy / h <= 1;
   }
 
   function pointNearLine(point, start, end, threshold) {
-    const A = point.x - start.x,
-      B = point.y - start.y;
-    const C = end.x - start.x,
-      D = end.y - start.y;
-    const dot = A * C + B * D,
-      len_sq = C * C + D * D;
+    const A = point.x - start.x, B = point.y - start.y;
+    const C = end.x - start.x, D = end.y - start.y;
+    const dot = A * C + B * D, len_sq = C * C + D * D;
     let param = -1;
     if (len_sq !== 0) param = dot / len_sq;
     let xx, yy;
-    if (param < 0) {
-      xx = start.x;
-      yy = start.y;
-    } else if (param > 1) {
-      xx = end.x;
-      yy = end.y;
-    } else {
-      xx = start.x + param * C;
-      yy = start.y + param * D;
-    }
-    const dx = point.x - xx,
-      dy = point.y - yy;
+    if (param < 0) { xx = start.x; yy = start.y; }
+    else if (param > 1) { xx = end.x; yy = end.y; }
+    else { xx = start.x + param * C; yy = start.y + param * D; }
+    const dx = point.x - xx, dy = point.y - yy;
     return dx * dx + dy * dy <= threshold * threshold;
   }
 

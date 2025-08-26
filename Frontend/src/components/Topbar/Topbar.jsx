@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { MdArrowRightAlt, MdOutlineCircle } from "react-icons/md";
 import { FaMinus } from "react-icons/fa";
-import { CiUnlock, CiLocationArrow1 } from "react-icons/ci";
 import { FaRegHandPaper } from "react-icons/fa";
 import { FaRegSquare } from "react-icons/fa6";
 import { LuTriangle, LuPencil, LuEraser } from "react-icons/lu";
@@ -9,6 +8,7 @@ import { RiFontColor } from "react-icons/ri";
 import { IoImageOutline } from "react-icons/io5";
 import { LuRectangleHorizontal } from "react-icons/lu";
 import { LuDiamond } from "react-icons/lu";
+import { ImMagicWand } from "react-icons/im";
 import "./Topbar.css";
 
 export default function Topbar({ onToolSelect }) {
@@ -96,6 +96,15 @@ export default function Topbar({ onToolSelect }) {
           onClick={() => handleSelect("eraser")}
         >
           <LuEraser />
+        </button>
+
+          <div className="vertical-divider" />
+
+        <button
+          className={activeTool === "laser" ? "active" : ""}
+          onClick={() => handleSelect("laser")}
+        >
+          <ImMagicWand />
         </button>
       </div>
     </div>
