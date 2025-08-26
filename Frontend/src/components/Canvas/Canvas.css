@@ -11,3 +11,19 @@
   background-size: 55px 55px; */
 
 }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(140,140,140,0.4); }
+  50% { box-shadow: 0 0 10px 5px rgba(140,140,140,0.2); }
+}
+.eraser-cursor-pulse {
+  animation: pulse 1s infinite;
+  border-radius: 50%;
+  border: 2px solid #aaa;
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: difference;
+  background: rgba(200,200,200,0.13);
+  z-index: 3;
+}
