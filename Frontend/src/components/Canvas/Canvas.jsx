@@ -2,10 +2,16 @@ import { useRef, useEffect, useState } from "react";
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
-
 const ERASER_RADIUS = 2;
 
-export default function Canvas({ selectedTool }) {
+export default function Canvas({
+  selectedTool,
+  selectedColor = "#000000",
+  strokeWidth = 2,
+  strokeStyle = "solid",
+  backgroundColor = "#ffffff",
+  opacity = 100
+}) {
   const canvasRef = useRef(null);
   const [shapes, setShapes] = useState([]);
   const [penPoints, setPenPoints] = useState([]);
@@ -18,14 +24,19 @@ export default function Canvas({ selectedTool }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const appEl = document.querySelector(".app");
     if (appEl) {
       canvas.width = appEl.scrollWidth;
       canvas.height = appEl.scrollHeight;
+    } else {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     }
     redraw();
     // eslint-disable-next-line
-  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint]);
+  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity]);
 
   // Fade out laser strokes automatically
   useEffect(() => {
@@ -52,6 +63,8 @@ export default function Canvas({ selectedTool }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     if (selectedTool === "pen") {
       canvas.style.cursor =
         "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\"><path d=\"M15.4998 5.49994L18.3282 8.32837M3 20.9997L3.04745 20.6675C3.21536 19.4922 3.29932 18.9045 3.49029 18.3558C3.65975 17.8689 3.89124 17.4059 4.17906 16.9783C4.50341 16.4963 4.92319 16.0765 5.76274 15.237L17.4107 3.58896C18.1918 2.80791 19.4581 2.80791 20.2392 3.58896C21.0202 4.37001 21.0202 5.63634 20.2392 6.41739L8.37744 18.2791C7.61579 19.0408 7.23497 19.4216 6.8012 19.7244C6.41618 19.9932 6.00093 20.2159 5.56398 20.3879C5.07171 20.5817 4.54375 20.6882 3.48793 20.9012L3 20.9997Z\"/></svg>') 0 20, auto";
@@ -137,7 +150,14 @@ export default function Canvas({ selectedTool }) {
     setIsDrawing(false);
 
     if (selectedTool === "pen" && penPoints.length > 0) {
-      setShapes([...shapes, { tool: "pen", points: penPoints }]);
+      setShapes([...shapes, {
+        tool: "pen",
+        points: penPoints,
+        color: selectedColor,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      }]);
       setPenPoints([]);
     } else if (selectedTool === "laser" && laserPoints.length > 1) {
       setShapes([
@@ -145,8 +165,11 @@ export default function Canvas({ selectedTool }) {
         {
           tool: "laser",
           points: laserPoints,
-          opacity: 1,
-          expiration: Date.now() + 2000, // fade after 2 seconds
+          opacity: opacity / 100,
+          expiration: Date.now() + 2000,
+          color: selectedColor,
+          strokeWidth,
+          strokeStyle
         },
       ]);
       setLaserPoints([]);
@@ -155,68 +178,119 @@ export default function Canvas({ selectedTool }) {
       setMarkedIds([]);
       setEraserPath([]);
     } else if (SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      setShapes([...shapes, { tool: selectedTool, start: startPoint, end: currentPoint }]);
+      setShapes([...shapes, {
+        tool: selectedTool,
+        start: startPoint,
+        end: currentPoint,
+        color: selectedColor,
+        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      }]);
     }
     setStartPoint(null);
     setCurrentPoint(null);
   };
 
+  function applyStrokeStyle(ctx, sStyle) {
+    switch (sStyle) {
+      case 'dashed':
+        ctx.setLineDash([8, 4]);
+        break;
+      case 'dotted':
+        ctx.setLineDash([2, 4]);
+        break;
+      case 'wavy':
+        ctx.setLineDash([6, 3, 2, 3]);
+        break;
+      default:
+        ctx.setLineDash([]);
+    }
+  }
+
   function redraw() {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     shapes.forEach((shape, idx) => {
       const fade = markedIds.includes(idx);
       if (shape.tool === "pen") {
-        drawPenStroke(ctx, shape.points, false, fade);
+        drawPenStroke(ctx, shape.points, false, fade, shape);
       } else if (shape.tool === "laser") {
-        drawLaserStroke(ctx, shape.points, shape.opacity);
+        drawLaserStroke(ctx, shape.points, shape.opacity, shape);
       } else {
-        drawShape(ctx, shape.start, shape.end, shape.tool, false, fade);
+        drawShape(ctx, shape.start, shape.end, shape.tool, false, fade, shape);
       }
     });
 
     if (isDrawing && selectedTool === "pen" && penPoints.length) {
-      drawPenStroke(ctx, penPoints, true, false);
+      drawPenStroke(ctx, penPoints, true, false, { color: selectedColor, strokeWidth, strokeStyle, opacity: opacity / 100 });
     }
     if (isDrawing && selectedTool === "laser" && laserPoints.length) {
-      drawLaserStroke(ctx, laserPoints, 1);
+      drawLaserStroke(ctx, laserPoints, opacity / 100, { color: selectedColor, strokeWidth, strokeStyle });
     }
     if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      drawShape(ctx, startPoint, currentPoint, selectedTool, true, false);
+      drawShape(ctx, startPoint, currentPoint, selectedTool, true, false, {
+        color: selectedColor,
+        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      });
     }
     if (selectedTool === "eraser" && eraserPath.length > 0) {
       drawEraserPath(ctx, eraserPath);
     }
   }
 
-  function drawPenStroke(ctx, points, isPreview = false, faded = false) {
+  function drawPenStroke(ctx, points, isPreview = false, faded = false, shape = {}) {
+    const color = shape.color || selectedColor;
+    const sWidth = shape.strokeWidth || strokeWidth;
+    const sStyle = shape.strokeStyle || strokeStyle;
+    const sOpacity = shape.opacity !== undefined ? shape.opacity : (opacity / 100);
+
     ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : sOpacity;
+
+    applyStrokeStyle(ctx, sStyle);
+
     ctx.beginPath();
     points.forEach((pt, idx) => {
       if (idx === 0) ctx.moveTo(pt.x, pt.y);
       else ctx.lineTo(pt.x, pt.y);
     });
-    ctx.strokeStyle = isPreview ? "#888" : faded ? "rgba(128,128,128,0.35)" : "#333";
-    ctx.lineWidth = isPreview ? 1.5 : faded ? 3.5 : 2.5;
+
+    ctx.strokeStyle = isPreview ? selectedColor : color;
+    ctx.lineWidth = isPreview ? strokeWidth : sWidth;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.stroke();
     ctx.restore();
   }
 
-  function drawLaserStroke(ctx, points, opacity = 1) {
+  function drawLaserStroke(ctx, points, laserOpacity = 1, shape = {}) {
+    const color = shape.color || selectedColor;
+    const sWidth = shape.strokeWidth || 3;
+    const sStyle = shape.strokeStyle || strokeStyle;
+
     ctx.save();
-    ctx.globalAlpha = opacity;
+    ctx.globalAlpha = laserOpacity;
+
+    applyStrokeStyle(ctx, sStyle);
+
     ctx.beginPath();
     points.forEach((pt, idx) => {
       if (idx === 0) ctx.moveTo(pt.x, pt.y);
       else ctx.lineTo(pt.x, pt.y);
     });
-    ctx.strokeStyle = `rgba(255,0,0,${opacity})`;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "red";
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = sWidth;
+    ctx.shadowColor = color;
     ctx.shadowBlur = 50;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
@@ -224,8 +298,18 @@ export default function Canvas({ selectedTool }) {
     ctx.restore();
   }
 
-  function drawShape(ctx, start, end, tool, isPreview = false, faded = false) {
+  function drawShape(ctx, start, end, tool, isPreview = false, faded = false, shape = {}) {
+    const color = shape.color || selectedColor;
+    const bgColor = shape.backgroundColor;
+    const sWidth = shape.strokeWidth || strokeWidth;
+    const sStyle = shape.strokeStyle || strokeStyle;
+    const sOpacity = shape.opacity !== undefined ? shape.opacity : (opacity / 100);
+
     ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : sOpacity;
+
+    applyStrokeStyle(ctx, sStyle);
+
     ctx.beginPath();
     switch (tool) {
       case "square":
@@ -264,8 +348,15 @@ export default function Canvas({ selectedTool }) {
       default:
         break;
     }
-    ctx.strokeStyle = isPreview ? "#888" : faded ? "rgba(128,128,128,0.35)" : "#333";
-    ctx.lineWidth = isPreview ? 1 : faded ? 3 : 2;
+
+    // Fill background if specified
+    if (bgColor && bgColor !== "#ffffff") {
+      ctx.fillStyle = bgColor;
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = isPreview ? selectedColor : color;
+    ctx.lineWidth = isPreview ? strokeWidth : sWidth;
     ctx.stroke();
     ctx.restore();
   }
@@ -297,7 +388,7 @@ export default function Canvas({ selectedTool }) {
 
   function shapeIntersectsEraser(shape, eraserPts) {
     if (shape.tool === "pen" || shape.tool === "laser") {
-      const points = shape.tool === "pen" ? shape.points : shape.points;
+      const points = shape.points;
       for (let i = 0; i < points.length - 1; i++) {
         const p1 = points[i];
         const p2 = points[i + 1];
@@ -363,7 +454,6 @@ export default function Canvas({ selectedTool }) {
     return dx * dx + dy * dy <= threshold * threshold;
   }
 
-  // Eraser cursor visual
   const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
   const handleCursorMove = (e) => {
     setMousePos(getRelativeCoords(e));

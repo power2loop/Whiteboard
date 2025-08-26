@@ -11,7 +11,8 @@ import { LuDiamond } from "react-icons/lu";
 import { ImMagicWand } from "react-icons/im";
 import "./Topbar.css";
 
-export default function Topbar({ onToolSelect }) {
+
+export default function Topbar({ onToolSelect, selectedColor, onColorSelect }) {
   const [activeTool, setActiveTool] = useState("select");
 
   const handleSelect = (tool) => {
@@ -22,88 +23,46 @@ export default function Topbar({ onToolSelect }) {
   return (
     <div className="topbar-wrapper">
       <div className="top-toolbar always-visible">
-        {/* <button
-          className={activeTool === "lock" ? "active" : ""}
-          onClick={() => handleSelect("lock")}
-        >
-          <CiUnlock />
-        </button> */}
         <button
           className={activeTool === "hand" ? "active" : ""}
           onClick={() => handleSelect("hand")}
         >
           <FaRegHandPaper />
         </button>
-
         <div className="vertical-divider" />
 
-        <button
-          className={activeTool === "square" ? "active" : ""}
-          onClick={() => handleSelect("square")}
-        >
+        <button className={activeTool === "square" ? "active" : ""} onClick={() => handleSelect("square")}>
           <FaRegSquare />
         </button>
-        <button
-          className={activeTool === "rectangle" ? "active" : ""}
-          onClick={() => handleSelect("rectangle")}
-        >
+        <button className={activeTool === "rectangle" ? "active" : ""} onClick={() => handleSelect("rectangle")}>
           <LuRectangleHorizontal />
         </button>
-        <button
-          className={activeTool === "diamond" ? "active" : ""}
-          onClick={() => handleSelect("diamond")}
-        >
+        <button className={activeTool === "diamond" ? "active" : ""} onClick={() => handleSelect("diamond")}>
           <LuDiamond />
         </button>
-        <button
-          className={activeTool === "circle" ? "active" : ""}
-          onClick={() => handleSelect("circle")}
-        >
+        <button className={activeTool === "circle" ? "active" : ""} onClick={() => handleSelect("circle")}>
           <MdOutlineCircle />
         </button>
-        <button
-          className={activeTool === "arrow" ? "active" : ""}
-          onClick={() => handleSelect("arrow")}
-        >
+        <button className={activeTool === "arrow" ? "active" : ""} onClick={() => handleSelect("arrow")}>
           <MdArrowRightAlt />
         </button>
-        <button
-          className={activeTool === "line" ? "active" : ""}
-          onClick={() => handleSelect("line")}
-        >
+        <button className={activeTool === "line" ? "active" : ""} onClick={() => handleSelect("line")}>
           <FaMinus />
         </button>
-        <button
-          className={activeTool === "pen" ? "active" : ""}
-          onClick={() => handleSelect("pen")}
-        >
+        <button className={activeTool === "pen" ? "active" : ""} onClick={() => handleSelect("pen")}>
           <LuPencil />
         </button>
-        <button
-          className={activeTool === "text" ? "active" : ""}
-          onClick={() => handleSelect("text")}
-        >
+        <button className={activeTool === "text" ? "active" : ""} onClick={() => handleSelect("text")}>
           <RiFontColor />
         </button>
-        <button
-          className={activeTool === "image" ? "active" : ""}
-          onClick={() => handleSelect("image")}
-        >
+        <button className={activeTool === "image" ? "active" : ""} onClick={() => handleSelect("image")}>
           <IoImageOutline />
         </button>
-        <button
-          className={activeTool === "eraser" ? "active" : ""}
-          onClick={() => handleSelect("eraser")}
-        >
+        <button className={activeTool === "eraser" ? "active" : ""} onClick={() => handleSelect("eraser")}>
           <LuEraser />
         </button>
-
-          <div className="vertical-divider" />
-
-        <button
-          className={activeTool === "laser" ? "active" : ""}
-          onClick={() => handleSelect("laser")}
-        >
+        <div className="vertical-divider" />
+        <button className={activeTool === "laser" ? "active" : ""} onClick={() => handleSelect("laser")}>
           <ImMagicWand />
         </button>
       </div>

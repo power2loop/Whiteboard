@@ -9,13 +9,18 @@ import { useState } from 'react';
 
 function App() {
   const [selectedTool, setSelectedTool] = useState("select");
+  const [selectedColor, setSelectedColor] = useState("#000000");
   const [showToolbar, setShowToolbar] = useState(false);
+
+  // Add new states for toolbar properties
+  const [strokeWidth, setStrokeWidth] = useState(2); // thin: 1, medium: 2, thick: 4
+  const [strokeStyle, setStrokeStyle] = useState("solid"); // solid, dashed, dotted, wavy
+  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const [opacity, setOpacity] = useState(100);
 
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
-
-    // Show toolbar only for shape tools
-    if (["lock", "hand", "select", "text", "image", "eraser"].includes(tool)) {
+    if (["lock", "hand", "select", "text", "image", "eraser", "laser"].includes(tool)) {
       setShowToolbar(false);
     } else {
       setShowToolbar(true);
@@ -26,29 +31,44 @@ function App() {
     <div className="app">
       <div className="layout">
         <header className="topbar">
-          <Topbar onToolSelect={handleToolSelect} />
+          <Topbar
+            onToolSelect={handleToolSelect}
+            selectedColor={selectedColor}
+            onColorSelect={setSelectedColor}
+          />
         </header>
-
         <aside className="sidebar">
           <Sidebar />
         </aside>
-
         <aside className="rightbar">
           <Rightbar />
         </aside>
-
         <main className="canvas">
-          {/* ✅ Pass selectedTool into Canvas */}
-          <Canvas selectedTool={selectedTool} />
+          <Canvas
+            selectedTool={selectedTool}
+            selectedColor={selectedColor}
+            strokeWidth={strokeWidth}
+            strokeStyle={strokeStyle}
+            backgroundColor={backgroundColor}
+            opacity={opacity}
+          />
         </main>
-
-        {/* Toolbar only shows when allowed */}
         {showToolbar && (
           <aside className="toolbar">
-            <Toolbar />
+            <Toolbar
+              selectedColor={selectedColor}
+              onColorSelect={setSelectedColor}
+              backgroundColor={backgroundColor}
+              onBackgroundColorSelect={setBackgroundColor}
+              strokeWidth={strokeWidth}
+              onStrokeWidthSelect={setStrokeWidth}
+              strokeStyle={strokeStyle}
+              onStrokeStyleSelect={setStrokeStyle}
+              opacity={opacity}
+              onOpacityChange={setOpacity}
+            />
           </aside>
         )}
-
         <footer className="bottom-controls">
           <BottomControls />
         </footer>

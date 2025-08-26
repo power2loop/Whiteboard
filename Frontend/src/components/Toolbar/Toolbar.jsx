@@ -9,44 +9,104 @@ import { AiOutlineDelete } from "react-icons/ai";
 import { IoIosLink } from "react-icons/io";
 
 const strokeColors = ['#191919', '#EF4444', '#22C55E', '#3B82F6', '#F59E42', '#00fffbff'];
-const backgroundColors = ['#e8e8e8ff', '#F8A5B3', '#BBF7D0', '#93E7FF', '#FDE68A', '#22C55E'];
+const backgroundColors = ['#ffffff', '#F8A5B3', '#BBF7D0', '#93E7FF', '#FDE68A', '#22C55E'];
 
-const Toolbar = () => {
+const Toolbar = ({
+    selectedColor,
+    onColorSelect,
+    backgroundColor,
+    onBackgroundColorSelect,
+    strokeWidth,
+    onStrokeWidthSelect,
+    strokeStyle,
+    onStrokeStyleSelect,
+    opacity,
+    onOpacityChange
+}) => {
+
+    const getStrokeWidthClass = (width) => {
+        if (width === 1) return 'thin';
+        if (width === 4) return 'thick';
+        return 'medium';
+    };
+
     return (
         <div className="toolbar-container">
-
             <div className="toolbar-section">
                 <div className="toolbar-label">Stroke</div>
                 <div className="color-group">
                     {strokeColors.map((color, idx) => (
-                        <button key={idx} className={`color-btn ${idx === 0 ? 'selected' : ''}`} style={{ backgroundColor: color }} />
+                        <button
+                            key={idx}
+                            className={`color-btn  ${selectedColor === color ? 'selected' : ''}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => onColorSelect(color)}
+                        />
                     ))}
+
+
                 </div>
             </div>
+
             <div className="toolbar-section">
                 <div className="toolbar-label">Background</div>
                 <div className="color-group">
                     {backgroundColors.map((color, idx) => (
-                        <button key={idx} className={`color-btn bg-btn ${idx === 0 ? 'selected' : ''}`} style={{ backgroundColor: color }} />
+                        <button
+                            key={idx}
+                            className={`color-btn bg-btn ${backgroundColor === color ? 'selected' : ''}`}
+                            style={{ backgroundColor: color }}
+                            onClick={() => onBackgroundColorSelect(color)}
+                        />
                     ))}
                 </div>
             </div>
+
             <div className="toolbar-section">
                 <div className="toolbar-label">Stroke width</div>
                 <div className="option-group">
-                    <button className="option-btn stroke-width thin"></button>
-                    <button className="option-btn stroke-width medium"></button>
-                    <button className="option-btn stroke-width thick"></button>
+                    <button
+                        className={`option-btn stroke-width thin ${strokeWidth === 1 ? 'selected' : ''}`}
+                        onClick={() => onStrokeWidthSelect(1)}
+                    ></button>
+                    <button
+                        className={`option-btn stroke-width medium ${strokeWidth === 2 ? 'selected' : ''}`}
+                        onClick={() => onStrokeWidthSelect(2)}
+                    ></button>
+                    <button
+                        className={`option-btn stroke-width thick ${strokeWidth === 4 ? 'selected' : ''}`}
+                        onClick={() => onStrokeWidthSelect(4)}
+                    ></button>
                 </div>
             </div>
 
             <div className="toolbar-section">
                 <div className="toolbar-label">Stroke style</div>
                 <div className="option-group">
-                    <button className="option-btn stroke-style"><TfiLayoutLineSolid /></button>
-                    <button className="option-btn stroke-style"><CgBorderStyleDashed /></button>
-                    <button className="option-btn stroke-style"><CgBorderStyleDotted /></button>
-                    <button className="option-btn stroke-style"><PiWaveSineDuotone /></button>
+                    <button
+                        className={`option-btn stroke-style ${strokeStyle === 'solid' ? 'selected' : ''}`}
+                        onClick={() => onStrokeStyleSelect('solid')}
+                    >
+                        <TfiLayoutLineSolid />
+                    </button>
+                    <button
+                        className={`option-btn stroke-style ${strokeStyle === 'dashed' ? 'selected' : ''}`}
+                        onClick={() => onStrokeStyleSelect('dashed')}
+                    >
+                        <CgBorderStyleDashed />
+                    </button>
+                    <button
+                        className={`option-btn stroke-style ${strokeStyle === 'dotted' ? 'selected' : ''}`}
+                        onClick={() => onStrokeStyleSelect('dotted')}
+                    >
+                        <CgBorderStyleDotted />
+                    </button>
+                    <button
+                        className={`option-btn stroke-style ${strokeStyle === 'wavy' ? 'selected' : ''}`}
+                        onClick={() => onStrokeStyleSelect('wavy')}
+                    >
+                        <PiWaveSineDuotone />
+                    </button>
                 </div>
             </div>
 
@@ -57,13 +117,15 @@ const Toolbar = () => {
                         type="range"
                         min="0"
                         max="100"
-                        defaultValue="100"
+                        value={opacity}
                         className="toolbar-slider"
+                        onChange={(e) => onOpacityChange(parseInt(e.target.value))}
                     />
                 </div>
                 <div className="opacity-values">
                     <span>0</span>
-                    <span>100</span>
+                    <span>{opacity}</span>
+                    {/* <span>100</span> */}
                 </div>
             </div>
 
