@@ -20,7 +20,7 @@ function App() {
 
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
-    if (["lock", "hand", "select", "text", "image", "eraser", "laser"].includes(tool)) {
+    if (["hand", "select", "image", "eraser"].includes(tool)) {
       setShowToolbar(false);
     } else {
       setShowToolbar(true);

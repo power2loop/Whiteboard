@@ -13,6 +13,7 @@ export default function Canvas({
   opacity = 100
 }) {
   const canvasRef = useRef(null);
+  const textAreaRef = useRef(null);
   const [shapes, setShapes] = useState([]);
   const [penPoints, setPenPoints] = useState([]);
   const [laserPoints, setLaserPoints] = useState([]);
@@ -21,6 +22,15 @@ export default function Canvas({
   const [startPoint, setStartPoint] = useState(null);
   const [currentPoint, setCurrentPoint] = useState(null);
   const [markedIds, setMarkedIds] = useState([]);
+  
+  // Simple text state
+  const [textInput, setTextInput] = useState({
+    show: false,
+    x: 0,
+    y: 0,
+    value: "",
+    fontSize: 16
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,7 +45,6 @@ export default function Canvas({
       canvas.height = window.innerHeight;
     }
     redraw();
-    // eslint-disable-next-line
   }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity]);
 
   // Fade out laser strokes automatically
@@ -73,6 +82,8 @@ export default function Canvas({
         "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"none\" stroke=\"black\" stroke-width=\"2\"/></svg>') 8 8, auto";
     } else if (selectedTool === "laser") {
       canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" xml:space=\"preserve\" width=\"24\" height=\"24\" viewBox=\"0 0 6.827 6.827\" style=\"shape-rendering:geometricPrecision;text-rendering:geometricPrecision;image-rendering:optimizeQuality;fill-rule:evenodd;clip-rule:evenodd\"><defs><style>.fil3{fill:%23414141;fill-rule:nonzero}</style></defs><g id=\"Layer_x0020_1\"><path d=\"m2.897 3.462-.5-.549.079-.071-.08.071a.107.107 0 0 1 .016-.157l.309-.28.071.08-.071-.08a.107.107 0 0 1 .157.016l.503.557-.482.412-.002.001z\" style=\"fill:%23959595;fill-rule:nonzero\"/><path d=\"m4.625 5.377-1.73-1.913.002-.002.484-.413L5.1 4.948l-.474.43z\" style=\"fill:%23676767;fill-rule:nonzero\"/><path d=\"m5.575 5.648-.31.279-.07-.079.07.08a.107.107 0 0 1-.156-.016l-.484-.535.474-.43.49.544-.078.071.079-.071a.107.107 0 0 1-.015.157z\" style=\"fill:%232f2f2f;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M3.27 1.342a.807.807 0 0 1-.295.293.808.808 0 0 1 .294.293.808.808 0 0 1 .294-.293.808.808 0 0 1-.294-.293z\"/><path d=\"M3.27 2.358c-.105-.352-.464-.708-.693-.708.357-.137.575-.429.692-.778.117.35.335.64.692.778-.229 0-.587.356-.692.708z\" style=\"fill:%23bcbcbc;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M1.788 1.858a.582.582 0 0 1-.212.21.582.582 0 0 1 .212.212A.582.582 0 0 1 2 2.069a.582.582 0 0 1-.212-.211z\"/><path d=\"M1.788 2.59c-.076-.254-.334-.51-.499-.51.257-.1.414-.31.499-.561.084.252.241.462.498.56-.165 0-.423.257-.498.51z\" style=\"fill:%23a0a0a0;fill-rule:nonzero\"/><path class=\"fil3\" d=\"M1.555 3.314a.404.404 0 0 1-.147.146.404.404 0 0 1 .147.147.404.404 0 0 1 .147-.147.404.404 0 0 1-.147-.146z\"/><path d=\"M1.555 3.822c-.052-.176-.231-.355-.346-.355a.594.594 0 0 0 .346-.389c.059.175.168.321.346.39-.114 0-.293.178-.346.354z\" style=\"fill:%23868686;fill-rule:nonzero\"/></g><path style=\"fill:none\" d=\"M0 0h6.827v6.827H0z\"/></svg>') 3 3, auto";
+    } else if (selectedTool === "text") {
+      canvas.style.cursor = "text";
     } else {
       canvas.style.cursor = "crosshair";
     }
@@ -102,6 +113,26 @@ export default function Canvas({
 
   const handleMouseDown = (e) => {
     const point = getRelativeCoords(e);
+    
+    if (selectedTool === "text") {
+      const fontSize = Math.max(strokeWidth * 8, 16);
+      
+      setTextInput({
+        show: true,
+        x: point.x,
+        y: point.y,
+        value: "",
+        fontSize: fontSize
+      });
+      
+      setTimeout(() => {
+        if (textAreaRef.current) {
+          textAreaRef.current.focus();
+        }
+      }, 10);
+      return;
+    }
+
     if (selectedTool === "pen") {
       setPenPoints([point]);
       setIsDrawing(true);
@@ -193,6 +224,54 @@ export default function Canvas({
     setCurrentPoint(null);
   };
 
+  // Simple text submission
+  const handleTextSubmit = () => {
+    if (textInput.value.trim()) {
+      setShapes([...shapes, {
+        tool: "text",
+        text: textInput.value,
+        x: textInput.x,
+        y: textInput.y,
+        color: selectedColor,
+        fontSize: textInput.fontSize,
+        fontFamily: "Arial",
+        opacity: opacity / 100
+      }]);
+    }
+    setTextInput({ 
+      show: false, 
+      x: 0, 
+      y: 0, 
+      value: "", 
+      fontSize: 16
+    });
+  };
+
+  // Simple text change handler
+  const handleTextChange = (e) => {
+    setTextInput(prev => ({ 
+      ...prev, 
+      value: e.target.value
+    }));
+  };
+
+  // Simple keyboard handler
+  const handleTextKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTextSubmit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setTextInput({ 
+        show: false, 
+        x: 0, 
+        y: 0, 
+        value: "", 
+        fontSize: 16
+      });
+    }
+  };
+
   function applyStrokeStyle(ctx, sStyle) {
     switch (sStyle) {
       case 'dashed':
@@ -222,6 +301,8 @@ export default function Canvas({
         drawPenStroke(ctx, shape.points, false, fade, shape);
       } else if (shape.tool === "laser") {
         drawLaserStroke(ctx, shape.points, shape.opacity, shape);
+      } else if (shape.tool === "text") {
+        drawText(ctx, shape, fade);
       } else {
         drawShape(ctx, shape.start, shape.end, shape.tool, false, fade, shape);
       }
@@ -247,6 +328,24 @@ export default function Canvas({
     }
   }
 
+  function drawText(ctx, shape, faded = false) {
+    ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : (shape.opacity || 1);
+    ctx.fillStyle = shape.color || "#000000";
+    ctx.font = `${shape.fontSize || 16}px ${shape.fontFamily || "Arial"}`;
+    ctx.textBaseline = "top";
+    
+    const lines = shape.text.split('\n');
+    const lineHeight = (shape.fontSize || 16) * 1.2;
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(line, shape.x, shape.y + (index * lineHeight));
+    });
+    
+    ctx.restore();
+  }
+
+  // All your existing drawing functions remain the same...
   function drawPenStroke(ctx, points, isPreview = false, faded = false, shape = {}) {
     const color = shape.color || selectedColor;
     const sWidth = shape.strokeWidth || strokeWidth;
@@ -255,15 +354,12 @@ export default function Canvas({
 
     ctx.save();
     ctx.globalAlpha = faded ? 0.35 : sOpacity;
-
     applyStrokeStyle(ctx, sStyle);
-
     ctx.beginPath();
     points.forEach((pt, idx) => {
       if (idx === 0) ctx.moveTo(pt.x, pt.y);
       else ctx.lineTo(pt.x, pt.y);
     });
-
     ctx.strokeStyle = isPreview ? selectedColor : color;
     ctx.lineWidth = isPreview ? strokeWidth : sWidth;
     ctx.lineJoin = "round";
@@ -279,15 +375,12 @@ export default function Canvas({
 
     ctx.save();
     ctx.globalAlpha = laserOpacity;
-
     applyStrokeStyle(ctx, sStyle);
-
     ctx.beginPath();
     points.forEach((pt, idx) => {
       if (idx === 0) ctx.moveTo(pt.x, pt.y);
       else ctx.lineTo(pt.x, pt.y);
     });
-
     ctx.strokeStyle = color;
     ctx.lineWidth = sWidth;
     ctx.shadowColor = color;
@@ -307,9 +400,7 @@ export default function Canvas({
 
     ctx.save();
     ctx.globalAlpha = faded ? 0.35 : sOpacity;
-
     applyStrokeStyle(ctx, sStyle);
-
     ctx.beginPath();
     switch (tool) {
       case "square":
@@ -348,13 +439,10 @@ export default function Canvas({
       default:
         break;
     }
-
-    // Fill background if specified
     if (bgColor && bgColor !== "#ffffff") {
       ctx.fillStyle = bgColor;
       ctx.fill();
     }
-
     ctx.strokeStyle = isPreview ? selectedColor : color;
     ctx.lineWidth = isPreview ? strokeWidth : sWidth;
     ctx.stroke();
@@ -397,6 +485,13 @@ export default function Canvas({
         }
       }
       return false;
+    } else if (shape.tool === "text") {
+      return eraserPts.some(ep => {
+        const dx = ep.x - shape.x;
+        const dy = ep.y - shape.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= ERASER_RADIUS * 15;
+      });
     }
     return eraserPts.some(ep => isPointInShape(shape, ep));
   }
@@ -477,6 +572,49 @@ export default function Canvas({
           className="eraser-cursor-pulse"
           style={{ left: mousePos.x, top: mousePos.y, width: ERASER_RADIUS * 2, height: ERASER_RADIUS * 2 }}
         />
+      )}
+      {textInput.show && (
+        <textarea
+  ref={textAreaRef}
+  value={textInput.value}
+  onChange={handleTextChange}
+  onKeyDown={handleTextKeyDown}
+  onBlur={handleTextSubmit}
+  className="whiteboard-text-input"
+  style={{
+    position: 'absolute',
+    left: textInput.x,
+    top: textInput.y - 10,
+    zIndex: 1000,
+    width: '300px',
+    minWidth: '200px',
+    height: '100px',
+    minHeight: '60px',
+    fontSize: `${textInput.fontSize}px`,
+    fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    fontWeight: 400,
+    lineHeight: 1.4,
+    color: selectedColor || '#1a1a1a',
+    background: '#ffffff7f',
+    border: '2px solid #e5e7eb',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    outline: 'none',
+    padding: '12px 16px',
+    resize: 'both',
+    transition: 'all 0.005s ease-in-out',
+    ...(textInput.focused && {
+      borderColor: '#3b82f6',
+      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    })
+  }}
+  placeholder="Enter your text here..."
+  aria-label="Text input for whiteboard"
+  spellCheck="true"
+  autoComplete="off"
+  rows={3}
+/>
+
       )}
     </>
   );
