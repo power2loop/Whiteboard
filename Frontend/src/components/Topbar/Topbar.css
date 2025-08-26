@@ -34,3 +34,11 @@
   color: #4f46e5;
 
 }
+
+.vertical-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #ddd;
+  margin: 0px 0px;
+  align-self: center;
+}

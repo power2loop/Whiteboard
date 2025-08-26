@@ -7,6 +7,8 @@ import { FaRegSquare } from "react-icons/fa6";
 import { LuTriangle, LuPencil, LuEraser } from "react-icons/lu";
 import { RiFontColor } from "react-icons/ri";
 import { IoImageOutline } from "react-icons/io5";
+import { LuRectangleHorizontal } from "react-icons/lu";
+import { LuDiamond } from "react-icons/lu";
 import "./Topbar.css";
 
 export default function Topbar({ onToolSelect }) {
@@ -20,24 +22,21 @@ export default function Topbar({ onToolSelect }) {
   return (
     <div className="topbar-wrapper">
       <div className="top-toolbar always-visible">
-        <button
+        {/* <button
           className={activeTool === "lock" ? "active" : ""}
           onClick={() => handleSelect("lock")}
         >
           <CiUnlock />
-        </button>
+        </button> */}
         <button
           className={activeTool === "hand" ? "active" : ""}
           onClick={() => handleSelect("hand")}
         >
           <FaRegHandPaper />
         </button>
-        <button
-          className={activeTool === "select" ? "active" : ""}
-          onClick={() => handleSelect("select")}
-        >
-          <CiLocationArrow1 />
-        </button>
+
+        <div className="vertical-divider" />
+
         <button
           className={activeTool === "square" ? "active" : ""}
           onClick={() => handleSelect("square")}
@@ -45,10 +44,16 @@ export default function Topbar({ onToolSelect }) {
           <FaRegSquare />
         </button>
         <button
+          className={activeTool === "rectangle" ? "active" : ""}
+          onClick={() => handleSelect("rectangle")}
+        >
+          <LuRectangleHorizontal />
+        </button>
+        <button
           className={activeTool === "diamond" ? "active" : ""}
           onClick={() => handleSelect("diamond")}
         >
-          <LuTriangle />
+          <LuDiamond />
         </button>
         <button
           className={activeTool === "circle" ? "active" : ""}
