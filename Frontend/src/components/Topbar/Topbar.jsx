@@ -19,7 +19,7 @@ export default function Topbar({ onToolSelect }) {
 
   return (
     <div className="topbar-wrapper">
-      <div className="toolbar always-visible">
+      <div className="top-toolbar always-visible">
         <button
           className={activeTool === "lock" ? "active" : ""}
           onClick={() => handleSelect("lock")}

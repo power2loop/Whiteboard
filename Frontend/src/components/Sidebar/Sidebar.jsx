@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./Sidebar.css";
 import logo from "../../assets/logo.svg";
 import { RiMenu2Line } from "react-icons/ri";
@@ -34,7 +34,7 @@ const Sidebar = () => {
   return (
     <div className="sidebar-container" ref={menuRef}>
       {/* Button */}
-      <img className="logo" src={logo} alt="" />
+      <img className="logo" src={logo} alt="LOGO" />
       <button className="menu-button" onClick={toggleMenu}>
         <RiMenu2Line />
       </button>

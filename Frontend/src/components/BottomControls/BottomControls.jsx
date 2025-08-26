@@ -1,5 +1,9 @@
 import { useState } from "react";
 import './BottomControls.css';
+import { HiOutlineMinus } from "react-icons/hi";
+import { RxPlus } from "react-icons/rx";
+import { BiUndo } from "react-icons/bi";
+import { BiRedo } from "react-icons/bi";
 
 const BottomControls = () => {
   const [zoom, setZoom] = useState(100);
@@ -15,16 +19,16 @@ const BottomControls = () => {
   return (
     <div className='bottomcontrols-container'>
       <div className="control-group">
-        <button className="control-btn" onClick={decrease}>−</button>
+        <button className="control-btn" onClick={decrease}><HiOutlineMinus /></button>
         <span className="control-value">{zoom}%</span>
-        <button className="control-btn" onClick={increase}>＋</button>
+        <button className="control-btn" onClick={increase}><RxPlus /></button>
       </div>
       <div className='control-group'>
         <button className='control-btn' aria-label='Undo'>
-          &#8630;
+          <BiUndo />
         </button>
         <button className='control-btn' aria-label='Redo'>
-          &#8631;
+          <BiRedo />
         </button>
       </div>
     </div>

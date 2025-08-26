@@ -1,25 +1,30 @@
-// canvas.jsx
+// Canvas.jsx
 import { useRef, useEffect, useState } from "react";
 import "./Canvas.css";
 
+// Shape tools
+const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line"];
+
 export default function Canvas({ selectedTool }) {
   const canvasRef = useRef(null);
+  // Store all drawn shapes
+  const [shapes, setShapes] = useState([]);
+  // Current drawing state
   const [isDrawing, setIsDrawing] = useState(false);
+  const [startPoint, setStartPoint] = useState(null);
+  const [currentPoint, setCurrentPoint] = useState(null);
 
+  // Set canvas size
   useEffect(() => {
     const canvas = canvasRef.current;
     const appEl = document.querySelector(".app");
-
     canvas.width = appEl.scrollWidth;
     canvas.height = appEl.scrollHeight;
-
-    const ctx = canvas.getContext("2d");
-    ctx.lineCap = "round";
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "black";
+    redraw();
+    // eslint-disable-next-line
   }, []);
 
-  // ✅ Apply custom cursor based on selected tool
+// ✅ Apply custom cursor based on selected tool
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -37,50 +42,242 @@ export default function Canvas({ selectedTool }) {
     }
   }, [selectedTool]);
 
-  const getCoords = (e) => ({
-    x: e.clientX + window.scrollX,
-    y: e.clientY + window.scrollY,
-  });
+  // Redraw whenever new shapes or preview shape
+  useEffect(() => {
+    redraw();
+    // eslint-disable-next-line
+  }, [shapes, currentPoint, isDrawing, selectedTool]);
 
-  const startDrawing = (e) => {
-    if (selectedTool !== "pen" && selectedTool !== "eraser") return;
-    const ctx = canvasRef.current.getContext("2d");
+  // Get mouse coordinates relative to canvas
+  function getRelativeCoords(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  }
+
+  // Mouse down handler, starts drawing or erasing
+  const handleMouseDown = (e) => {
+    const point = getRelativeCoords(e);
+    if (selectedTool === "pen") {
+      setIsDrawing(true);
+      setStartPoint(point);
+      setCurrentPoint(point);
+      const ctx = canvasRef.current.getContext("2d");
+      setupTool(ctx);
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+    } else if (selectedTool === "eraser") {
+      // Eraser: find and remove shape under cursor
+      const hitIndex = shapes.findIndex((shape) => isInShape(shape, point));
+      if (hitIndex !== -1) {
+        const updatedShapes = shapes.filter((_, i) => i !== hitIndex);
+        setShapes(updatedShapes);
+      }
+    } else if (SHAPE_TOOLS.includes(selectedTool)) {
+      setIsDrawing(true);
+      setStartPoint(point);
+      setCurrentPoint(point);
+    }
+  };
+
+  // Mouse move handler, draws or previews shape
+  const handleMouseMove = (e) => {
+    if (!isDrawing) return;
+    const point = getRelativeCoords(e);
+    setCurrentPoint(point);
 
     if (selectedTool === "pen") {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+    }
+  };
+
+  // Mouse up handler, finalizes drawing
+  const handleMouseUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+
+    if (selectedTool === "pen") {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.closePath();
+    } else if (SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
+      setShapes([
+        ...shapes,
+        { tool: selectedTool, start: startPoint, end: currentPoint },
+      ]);
+    }
+    setStartPoint(null);
+    setCurrentPoint(null);
+  };
+
+  // Setup pen tool parameters
+  function setupTool(ctx) {
+    if (selectedTool === "pen") {
       ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = "black";
+      ctx.strokeStyle = "#333";
       ctx.lineWidth = 2;
-    } else if (selectedTool === "eraser") {
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.lineWidth = 20;
+    }
+  }
+
+  // Redraw all shapes & current preview
+  function redraw() {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    shapes.forEach((shape) => {
+      drawShape(ctx, shape.start, shape.end, shape.tool);
+    });
+
+    if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
+      drawShape(ctx, startPoint, currentPoint, selectedTool, true);
+    }
+  }
+
+  // Draw shapes including diamond (replacing triangle)
+  function drawShape(ctx, start, end, tool, isPreview = false) {
+    ctx.save();
+    ctx.beginPath();
+
+    switch (tool) {
+      case "square": {
+        const size = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+        ctx.rect(
+          start.x,
+          start.y,
+          size * Math.sign(end.x - start.x),
+          size * Math.sign(end.y - start.y)
+        );
+        break;
+      }
+      case "diamond": {
+        // Diamond geometry centered in between start/end
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
+        const w = Math.abs(end.x - start.x) / 2;
+        const h = Math.abs(end.y - start.y) / 2;
+        ctx.moveTo(cx, cy - h);
+        ctx.lineTo(cx + w, cy);
+        ctx.lineTo(cx, cy + h);
+        ctx.lineTo(cx - w, cy);
+        ctx.closePath();
+        break;
+      }
+      case "circle": {
+        const centerX = (start.x + end.x) / 2;
+        const centerY = (start.y + end.y) / 2;
+        const radius = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        break;
+      }
+      case "arrow": {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        drawArrowHead(ctx, start, end, 16);
+        break;
+      }
+      case "line": {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        break;
+      }
+      default:
+        break;
     }
 
-    const { x, y } = getCoords(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing || (selectedTool !== "pen" && selectedTool !== "eraser")) return;
-    const ctx = canvasRef.current.getContext("2d");
-    const { x, y } = getCoords(e);
-    ctx.lineTo(x, y);
+    ctx.strokeStyle = isPreview ? "#888" : "#333";
+    ctx.lineWidth = isPreview ? 1 : 2;
     ctx.stroke();
-  };
+    ctx.restore();
+  }
 
-  const stopDrawing = () => {
-    if (isDrawing) setIsDrawing(false);
-  };
+  // Draw arrow head function
+  function drawArrowHead(ctx, from, to, headlen = 16) {
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(
+      to.x - headlen * Math.cos(angle - Math.PI / 6),
+      to.y - headlen * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(
+      to.x - headlen * Math.cos(angle + Math.PI / 6),
+      to.y - headlen * Math.sin(angle + Math.PI / 6)
+    );
+  }
+
+  // Check if point (x,y) is inside shape
+  function isInShape(shape, point) {
+    const { start, end, tool } = shape;
+    switch (tool) {
+      case "square":
+      case "diamond": {
+        const minX = Math.min(start.x, end.x);
+        const maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const maxY = Math.max(start.y, end.y);
+        return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+      }
+      case "circle": {
+        const centerX = (start.x + end.x) / 2;
+        const centerY = (start.y + end.y) / 2;
+        const radius = Math.sqrt(
+          (end.x - start.x) ** 2 + (end.y - start.y) ** 2
+        ) / 2;
+        return (
+          (point.x - centerX) ** 2 + (point.y - centerY) ** 2 <= radius ** 2
+        );
+      }
+      case "line":
+      case "arrow":
+        return isNearLine(start, end, point, 8);
+      default:
+        return false;
+    }
+  }
+
+  // Check proximity of point to line segment for eraser hit-testing
+  function isNearLine(start, end, point, threshold) {
+    const A = point.x - start.x;
+    const B = point.y - start.y;
+    const C = end.x - start.x;
+    const D = end.y - start.y;
+
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+
+    let xx, yy;
+    if (param < 0) {
+      xx = start.x;
+      yy = start.y;
+    } else if (param > 1) {
+      xx = end.x;
+      yy = end.y;
+    } else {
+      xx = start.x + param * C;
+      yy = start.y + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dy = point.y - yy;
+    return dx * dx + dy * dy <= threshold * threshold;
+  }
 
   return (
     <canvas
       ref={canvasRef}
       className="drawing-canvas"
-      onMouseDown={startDrawing}
-      onMouseMove={draw}
-      onMouseUp={stopDrawing}
-      onMouseLeave={stopDrawing}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      tabIndex={0}
+      aria-label="whiteboard-canvas"
     />
   );
 }
