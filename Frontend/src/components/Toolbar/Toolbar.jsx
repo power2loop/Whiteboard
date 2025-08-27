@@ -37,18 +37,21 @@ const Toolbar = ({
     };
 
     const handleClear = () => {
-        if (onClearCanvas) {
-            // Ask for confirmation before clearing
-            const confirmed = window.confirm('Are you sure you want to clear the entire canvas? This action cannot be undone.');
-            if (confirmed) {
-                try {
-                    onClearCanvas();
-                } catch (error) {
-                    console.error('Failed to clear canvas:', error);
-                }
-            }
-        }
-    };
+  if (onClearCanvas) {
+    // Enhanced confirmation dialog
+    const confirmed = window.confirm(
+      '⚠️ Clear entire canvas?\n\nThis will delete everything from the canvas.\n\nAre you sure you want to continue?'
+    );
+    if (confirmed) {
+      try {
+        onClearCanvas();
+      } catch (error) {
+        console.error('Failed to clear canvas:', error);
+      }
+    }
+  }
+};
+
 
     const getStrokeWidthClass = (width) => {
         if (width === 1) return 'thin';
