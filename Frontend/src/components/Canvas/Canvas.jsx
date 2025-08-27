@@ -57,6 +57,26 @@ export default function Canvas({
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
 
+  // Function to constrain pan offset within bounds
+  const constrainPanOffset = useCallback((offset, currentZoom) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return offset;
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
+    // Calculate the bounds for panning based on zoom level
+    const maxPanX = Math.max(0, (currentZoom - 1) * canvasWidth);
+    const maxPanY = Math.max(0, (currentZoom - 1) * canvasHeight);
+    const minPanX = Math.min(0, canvasWidth - (currentZoom * canvasWidth));
+    const minPanY = Math.min(0, canvasHeight - (currentZoom * canvasHeight));
+
+    return {
+      x: Math.max(minPanX, Math.min(maxPanX, offset.x)),
+      y: Math.max(minPanY, Math.min(maxPanY, offset.y))
+    };
+  }, []);
+
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
     setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
@@ -94,6 +114,26 @@ export default function Canvas({
     if (canUndo) canUndo(undoHistory.length > 0);
     if (canRedo) canRedo(redoHistory.length > 0);
   }, [undoHistory.length, redoHistory.length, canUndo, canRedo]);
+
+  // Update pan offset when zoom changes to keep content centered and within bounds
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Keep the center point stable when zooming
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // Calculate new pan offset to keep center point stable
+    const newPanOffset = {
+      x: centerX - (centerX * zoom),
+      y: centerY - (centerY * zoom)
+    };
+    
+    // Apply bounds constraint
+    const constrainedOffset = constrainPanOffset(newPanOffset, zoom);
+    setPanOffset(constrainedOffset);
+  }, [zoom, constrainPanOffset]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -158,40 +198,6 @@ export default function Canvas({
       canvas.style.cursor = "crosshair";
     }
   }, [selectedTool]);
-
-  // Handle zoom with mouse wheel
-  const handleWheel = useCallback((e) => {
-    e.preventDefault();
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Calculate zoom
-    const delta = e.deltaY;
-    const zoomFactor = delta > 0 ? 0.9 : 1.1;
-    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * zoomFactor));
-    
-    // Calculate new pan offset to zoom towards mouse position
-    const zoomPointX = (mouseX - panOffset.x) / zoom;
-    const zoomPointY = (mouseY - panOffset.y) / zoom;
-    
-    const newPanX = mouseX - zoomPointX * newZoom;
-    const newPanY = mouseY - zoomPointY * newZoom;
-    
-    onZoomChange?.(newZoom);
-    setPanOffset({ x: newPanX, y: newPanY });
-  }, [zoom, panOffset, onZoomChange]);
-
-  // Add wheel event listener
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-    return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
 
   function getRelativeCoords(e) {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -332,10 +338,14 @@ export default function Canvas({
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
       
-      setPanOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
+      const newPanOffset = {
+        x: panOffset.x + deltaX,
+        y: panOffset.y + deltaY
+      };
+      
+      // Apply bounds constraint during panning
+      const constrainedOffset = constrainPanOffset(newPanOffset, zoom);
+      setPanOffset(constrainedOffset);
       
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       return;
@@ -526,10 +536,10 @@ export default function Canvas({
     ctx.restore();
   }
 
+  // [All the existing drawing functions remain the same - drawImage, drawText, etc.]
   function drawImage(ctx, shape, faded = false) {
     const img = loadedImages.get(shape.id);
     if (!img) {
-      // Image not loaded yet, show placeholder
       ctx.save();
       ctx.globalAlpha = faded ? 0.2 : 0.5;
       ctx.fillStyle = "#e5e7eb";
@@ -538,7 +548,6 @@ export default function Canvas({
       ctx.lineWidth = 2;
       ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
       
-      // Draw loading text
       ctx.fillStyle = "#6b7280";
       ctx.font = "14px Arial";
       ctx.textAlign = "center";
@@ -555,7 +564,6 @@ export default function Canvas({
       ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
     } catch (error) {
       console.error("Error drawing image:", error);
-      // Fallback to placeholder
       ctx.fillStyle = "#fca5a5";
       ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
       ctx.strokeStyle = "#ef4444";
