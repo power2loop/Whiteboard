@@ -46,6 +46,7 @@ function App() {
         <main className="canvas">
           <Canvas
             selectedTool={selectedTool}
+            onToolChange={setSelectedTool}
             selectedColor={selectedColor}
             strokeWidth={strokeWidth}
             strokeStyle={strokeStyle}

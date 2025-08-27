@@ -10,10 +10,12 @@ export default function Canvas({
   strokeWidth = 2,
   strokeStyle = "solid",
   backgroundColor = "#ffffff",
-  opacity = 100
+  opacity = 100,
+  onToolChange // Add this prop to reset tool after image insertion
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [shapes, setShapes] = useState([]);
   const [penPoints, setPenPoints] = useState([]);
   const [laserPoints, setLaserPoints] = useState([]);
@@ -22,6 +24,7 @@ export default function Canvas({
   const [startPoint, setStartPoint] = useState(null);
   const [currentPoint, setCurrentPoint] = useState(null);
   const [markedIds, setMarkedIds] = useState([]);
+  const [loadedImages, setLoadedImages] = useState(new Map()); // Cache for loaded images
   
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -31,6 +34,9 @@ export default function Canvas({
     value: "",
     fontSize: 16
   });
+
+  // Image placement state
+  const [imageToPlace, setImageToPlace] = useState(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -70,7 +76,14 @@ export default function Canvas({
     return () => clearInterval(interval);
   }, []);
 
+  // Trigger file input when image tool is selected
   useEffect(() => {
+    if (selectedTool === "image") {
+      fileInputRef.current?.click();
+    }
+  }, [selectedTool]);
+
+    useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -83,7 +96,8 @@ export default function Canvas({
     } else if (selectedTool === "text") {
       canvas.style.cursor = "text";
     } else if (selectedTool === "hand") {
-canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.2607 12.4008C19.3774 11.2626 20.4357 10.6935 20.7035 10.0084C20.9359 9.41393 20.8705 8.74423 20.5276 8.20587C20.1324 7.58551 18.984 7.23176 16.6872 6.52425L8.00612 3.85014C6.06819 3.25318 5.09923 2.95471 4.45846 3.19669C3.90068 3.40733 3.46597 3.85584 3.27285 4.41993C3.051 5.06794 3.3796 6.02711 4.03681 7.94545L6.94793 16.4429C7.75632 18.8025 8.16052 19.9824 8.80519 20.3574C9.36428 20.6826 10.0461 20.7174 10.6354 20.4507C11.3149 20.1432 11.837 19.0106 12.8813 16.7454L13.6528 15.0719C13.819 14.7113 13.9021 14.531 14.0159 14.3736C14.1168 14.2338 14.2354 14.1078 14.3686 13.9984C14.5188 13.8752 14.6936 13.7812 15.0433 13.5932L17.2607 12.4008Z\"/></svg>') 10 10, auto";    } else {
+      canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.2607 12.4008C19.3774 11.2626 20.4357 10.6935 20.7035 10.0084C20.9359 9.41393 20.8705 8.74423 20.5276 8.20587C20.1324 7.58551 18.984 7.23176 16.6872 6.52425L8.00612 3.85014C6.06819 3.25318 5.09923 2.95471 4.45846 3.19669C3.90068 3.40733 3.46597 3.85584 3.27285 4.41993C3.051 5.06794 3.3796 6.02711 4.03681 7.94545L6.94793 16.4429C7.75632 18.8025 8.16052 19.9824 8.80519 20.3574C9.36428 20.6826 10.0461 20.7174 10.6354 20.4507C11.3149 20.1432 11.837 19.0106 12.8813 16.7454L13.6528 15.0719C13.819 14.7113 13.9021 14.531 14.0159 14.3736C14.1168 14.2338 14.2354 14.1078 14.3686 13.9984C14.5188 13.8752 14.6936 13.7812 15.0433 13.5932L17.2607 12.4008Z\"/></svg>') 10 10, auto";
+    } else {
       canvas.style.cursor = "crosshair";
     }
   }, [selectedTool]);
@@ -110,8 +124,76 @@ canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.o
     return points;
   }
 
+  // Handle file selection for images
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate appropriate size (max 300px width/height while maintaining aspect ratio)
+          const maxSize = 300;
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+          
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = width * ratio;
+            height = height * ratio;
+          }
+
+          setImageToPlace({
+            src: event.target.result,
+            width,
+            height,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          });
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // Clear the file input
+    e.target.value = '';
+    
+    // Reset tool to selection or pen after image selection
+    if (onToolChange) {
+      onToolChange("select"); // or whatever your default tool is
+    }
+  };
+
   const handleMouseDown = (e) => {
     const point = getRelativeCoords(e);
+    
+    // Handle image placement
+    if (imageToPlace) {
+      const imageId = `img_${Date.now()}_${Math.random()}`;
+      
+      // Create and cache the image
+      const img = new Image();
+      img.onload = () => {
+        setLoadedImages(prev => new Map(prev.set(imageId, img)));
+      };
+      img.src = imageToPlace.src;
+      
+      // Add image shape
+      setShapes(prev => [...prev, {
+        tool: "image",
+        id: imageId,
+        x: point.x,
+        y: point.y,
+        width: imageToPlace.width,
+        height: imageToPlace.height,
+        src: imageToPlace.src,
+        opacity: opacity / 100
+      }]);
+      
+      setImageToPlace(null);
+      return;
+    }
     
     if (selectedTool === "text") {
       const fontSize = Math.max(strokeWidth * 8, 16);
@@ -302,6 +384,8 @@ canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.o
         drawLaserStroke(ctx, shape.points, shape.opacity, shape);
       } else if (shape.tool === "text") {
         drawText(ctx, shape, fade);
+      } else if (shape.tool === "image") {
+        drawImage(ctx, shape, fade);
       } else {
         drawShape(ctx, shape.start, shape.end, shape.tool, false, fade, shape);
       }
@@ -325,6 +409,46 @@ canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.o
     if (selectedTool === "eraser" && eraserPath.length > 0) {
       drawEraserPath(ctx, eraserPath);
     }
+  }
+
+  function drawImage(ctx, shape, faded = false) {
+    const img = loadedImages.get(shape.id);
+    if (!img) {
+      // Image not loaded yet, show placeholder
+      ctx.save();
+      ctx.globalAlpha = faded ? 0.2 : 0.5;
+      ctx.fillStyle = "#e5e7eb";
+      ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+      ctx.strokeStyle = "#9ca3af";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+      
+      // Draw loading text
+      ctx.fillStyle = "#6b7280";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Loading...", shape.x + shape.width / 2, shape.y + shape.height / 2);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : (shape.opacity || 1);
+    
+    try {
+      ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
+    } catch (error) {
+      console.error("Error drawing image:", error);
+      // Fallback to placeholder
+      ctx.fillStyle = "#fca5a5";
+      ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    }
+    
+    ctx.restore();
   }
 
   function drawText(ctx, shape, faded = false) {
@@ -491,6 +615,11 @@ canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.o
         const distance = Math.sqrt(dx * dx + dy * dy);
         return distance <= ERASER_RADIUS * 15;
       });
+    } else if (shape.tool === "image") {
+      return eraserPts.some(ep => {
+        return ep.x >= shape.x && ep.x <= shape.x + shape.width &&
+               ep.y >= shape.y && ep.y <= shape.y + shape.height;
+      });
     }
     return eraserPts.some(ep => isPointInShape(shape, ep));
   }
@@ -565,55 +694,84 @@ canvas.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.o
         onMouseLeave={handleMouseUp}
         tabIndex={0}
         aria-label="whiteboard-canvas"
+        style={{ cursor: imageToPlace ? 'crosshair' : 'default' }}
       />
+      
+      {/* Hidden file input for image selection */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+      
       {selectedTool === "eraser" && (
         <div
           className="eraser-cursor-pulse"
           style={{ left: mousePos.x, top: mousePos.y, width: ERASER_RADIUS * 2, height: ERASER_RADIUS * 2 }}
         />
       )}
+      
+      {imageToPlace && (
+        <div
+          className="image-placement-cursor"
+          style={{
+            position: 'absolute',
+            left: mousePos.x,
+            top: mousePos.y,
+            width: imageToPlace.width,
+            height: imageToPlace.height,
+            border: '2px dashed #3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            pointerEvents: 'none',
+            zIndex: 1000,
+            transform: 'translate(-50%, -50%)'
+          }}
+        />
+      )}
+      
       {textInput.show && (
         <textarea
-  ref={textAreaRef}
-  value={textInput.value}
-  onChange={handleTextChange}
-  onKeyDown={handleTextKeyDown}
-  onBlur={handleTextSubmit}
-  className="whiteboard-text-input"
-  style={{
-    position: 'absolute',
-    left: textInput.x,
-    top: textInput.y - 10,
-    zIndex: 1000,
-    width: '300px',
-    minWidth: '200px',
-    height: '100px',
-    minHeight: '60px',
-    fontSize: `${textInput.fontSize}px`,
-    fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    fontWeight: 400,
-    lineHeight: 1.4,
-    color: selectedColor || '#1a1a1a',
-    background: '#ffffff7f',
-    border: '2px solid #e5e7eb',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-    outline: 'none',
-    padding: '12px 16px',
-    resize: 'both',
-    transition: 'all 0.005s ease-in-out',
-    ...(textInput.focused && {
-      borderColor: '#3b82f6',
-      boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    })
-  }}
-  placeholder="Enter your text here..."
-  aria-label="Text input for whiteboard"
-  spellCheck="true"
-  autoComplete="off"
-  rows={3}
-/>
-
+          ref={textAreaRef}
+          value={textInput.value}
+          onChange={handleTextChange}
+          onKeyDown={handleTextKeyDown}
+          onBlur={handleTextSubmit}
+          className="whiteboard-text-input"
+          style={{
+            position: 'absolute',
+            left: textInput.x,
+            top: textInput.y - 10,
+            zIndex: 1000,
+            width: '300px',
+            minWidth: '200px',
+            height: '100px',
+            minHeight: '60px',
+            fontSize: `${textInput.fontSize}px`,
+            fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+            fontWeight: 400,
+            lineHeight: 1.4,
+            color: selectedColor || '#1a1a1a',
+            background: '#ffffff7f',
+            border: '2px solid #e5e7eb',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            outline: 'none',
+            padding: '12px 16px',
+            resize: 'both',
+            transition: 'all 0.005s ease-in-out',
+            ...(textInput.focused && {
+              borderColor: '#3b82f6',
+              boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            })
+          }}
+          placeholder="Enter your text here..."
+          aria-label="Text input for whiteboard"
+          spellCheck="true"
+          autoComplete="off"
+          rows={3}
+        />
       )}
     </>
   );
