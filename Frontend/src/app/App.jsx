@@ -1,4 +1,3 @@
-//App.jsx
 import Sidebar from '../components/Sidebar/Sidebar';
 import Toolbar from '../components/Toolbar/Toolbar';
 import Canvas from '../components/Canvas/Canvas';
@@ -28,6 +27,10 @@ function App() {
   const undoFunctionRef = useRef(null);
   const redoFunctionRef = useRef(null);
 
+  // Canvas action references
+  const canvasCopyRef = useRef(null);
+  const canvasClearRef = useRef(null);
+
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
     if (["hand", "select", "image", "eraser"].includes(tool)) {
@@ -53,6 +56,30 @@ function App() {
     }
   };
 
+  const handleCopyCanvas = async () => {
+    if (canvasCopyRef.current) {
+      try {
+        await canvasCopyRef.current();
+        console.log('Canvas copied to clipboard successfully!');
+        alert('Canvas copied to clipboard successfully!');
+      } catch (error) {
+        console.error('Failed to copy canvas:', error);
+        alert('Failed to copy canvas. Please try again.');
+      }
+    }
+  };
+
+  const handleClearCanvas = () => {
+    if (canvasClearRef.current) {
+      try {
+        canvasClearRef.current();
+        console.log('Canvas cleared successfully!');
+      } catch (error) {
+        console.error('Failed to clear canvas:', error);
+      }
+    }
+  };
+
   return (
     <div className="app">
       <div className="layout">
@@ -69,6 +96,22 @@ function App() {
         <aside className="rightbar">
           <Rightbar />
         </aside>
+        {showToolbar && (
+          <Toolbar
+            selectedColor={selectedColor}
+            onColorSelect={setSelectedColor}
+            backgroundColor={backgroundColor}
+            onBackgroundColorSelect={setBackgroundColor}
+            strokeWidth={strokeWidth}
+            onStrokeWidthSelect={setStrokeWidth}
+            strokeStyle={strokeStyle}
+            onStrokeStyleSelect={setStrokeStyle}
+            opacity={opacity}
+            onOpacityChange={setOpacity}
+            onCopyCanvas={handleCopyCanvas}
+            onClearCanvas={handleClearCanvas}
+          />
+        )}
         <main className="canvas">
           <Canvas
             selectedTool={selectedTool}
@@ -80,30 +123,16 @@ function App() {
             opacity={opacity}
             zoom={zoom}
             onZoomChange={handleZoomChange}
-            onUndo={(undoFunc) => { undoFunctionRef.current = undoFunc; }}
-            onRedo={(redoFunc) => { redoFunctionRef.current = redoFunc; }}
-            canUndo={(canUndoState) => setCanUndo(canUndoState)}
-            canRedo={(canRedoState) => setCanRedo(canRedoState)}
+            onUndoFunction={(undoFn) => { undoFunctionRef.current = undoFn; }}
+            onRedoFunction={(redoFn) => { redoFunctionRef.current = redoFn; }}
+            onCanUndo={setCanUndo}
+            onCanRedo={setCanRedo}
+            onCopyFunction={(copyFn) => { canvasCopyRef.current = copyFn; }}
+            onClearFunction={(clearFn) => { canvasClearRef.current = clearFn; }}
           />
         </main>
-        {showToolbar && (
-          <aside className="toolbar">
-            <Toolbar
-              selectedColor={selectedColor}
-              onColorSelect={setSelectedColor}
-              backgroundColor={backgroundColor}
-              onBackgroundColorSelect={setBackgroundColor}
-              strokeWidth={strokeWidth}
-              onStrokeWidthSelect={setStrokeWidth}
-              strokeStyle={strokeStyle}
-              onStrokeStyleSelect={setStrokeStyle}
-              opacity={opacity}
-              onOpacityChange={setOpacity}
-            />
-          </aside>
-        )}
         <footer className="bottom-controls">
-          <BottomControls 
+          <BottomControls
             zoom={zoom * 100}
             onZoomChange={handleZoomChange}
             onUndo={handleUndo}

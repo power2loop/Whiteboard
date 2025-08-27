@@ -21,8 +21,34 @@ const Toolbar = ({
     strokeStyle,
     onStrokeStyleSelect,
     opacity,
-    onOpacityChange
+    onOpacityChange,
+    onCopyCanvas,
+    onClearCanvas
 }) => {
+
+    const handleCopy = async () => {
+        if (onCopyCanvas) {
+            try {
+                await onCopyCanvas();
+            } catch (error) {
+                console.error('Failed to copy canvas:', error);
+            }
+        }
+    };
+
+    const handleClear = () => {
+        if (onClearCanvas) {
+            // Ask for confirmation before clearing
+            const confirmed = window.confirm('Are you sure you want to clear the entire canvas? This action cannot be undone.');
+            if (confirmed) {
+                try {
+                    onClearCanvas();
+                } catch (error) {
+                    console.error('Failed to clear canvas:', error);
+                }
+            }
+        }
+    };
 
     const getStrokeWidthClass = (width) => {
         if (width === 1) return 'thin';
@@ -43,8 +69,6 @@ const Toolbar = ({
                             onClick={() => onColorSelect(color)}
                         />
                     ))}
-
-
                 </div>
             </div>
 
@@ -125,15 +149,26 @@ const Toolbar = ({
                 <div className="opacity-values">
                     <span>0</span>
                     <span>{opacity}</span>
-                    {/* <span>100</span> */}
                 </div>
             </div>
 
             <div className="toolbar-section">
                 <div className="toolbar-label">Actions</div>
                 <div className="action-group">
-                    <button className="action-btn" title="Copy"><GoCopy /></button>
-                    <button className="action-btn" title="Delete"><AiOutlineDelete /></button>
+                    <button
+                        className="action-btn"
+                        title="Copy Canvas to Clipboard"
+                        onClick={handleCopy}
+                    >
+                        <GoCopy />
+                    </button>
+                    <button
+                        className="action-btn"
+                        title="Clear All Canvas Content"
+                        onClick={handleClear}
+                    >
+                        <AiOutlineDelete />
+                    </button>
                     <button className="action-btn" title="Link"><IoIosLink /></button>
                 </div>
             </div>
