@@ -110,3 +110,22 @@
         min-width: 32px;
     }
 }
+
+/* Add to your existing BottomControls.css */
+.control-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.control-btn {
+  transition: all 0.2s ease;
+}

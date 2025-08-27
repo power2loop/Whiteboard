@@ -1,3 +1,4 @@
+//App.jsx
 import Sidebar from '../components/Sidebar/Sidebar';
 import Toolbar from '../components/Toolbar/Toolbar';
 import Canvas from '../components/Canvas/Canvas';
@@ -5,7 +6,7 @@ import BottomControls from '../components/BottomControls/BottomControls';
 import Topbar from '../components/Topbar/Topbar';
 import Rightbar from '../components/Rightbar/Rightbar';
 import "./App.css";
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 function App() {
   const [selectedTool, setSelectedTool] = useState("select");
@@ -13,10 +14,19 @@ function App() {
   const [showToolbar, setShowToolbar] = useState(false);
 
   // Add new states for toolbar properties
-  const [strokeWidth, setStrokeWidth] = useState(2); // thin: 1, medium: 2, thick: 4
-  const [strokeStyle, setStrokeStyle] = useState("solid"); // solid, dashed, dotted, wavy
+  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [strokeStyle, setStrokeStyle] = useState("solid");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [opacity, setOpacity] = useState(100);
+
+  // Zoom state
+  const [zoom, setZoom] = useState(1);
+
+  // Undo/Redo state
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const undoFunctionRef = useRef(null);
+  const redoFunctionRef = useRef(null);
 
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
@@ -24,6 +34,22 @@ function App() {
       setShowToolbar(false);
     } else {
       setShowToolbar(true);
+    }
+  };
+
+  const handleZoomChange = (newZoom) => {
+    setZoom(newZoom);
+  };
+
+  const handleUndo = () => {
+    if (undoFunctionRef.current) {
+      undoFunctionRef.current();
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoFunctionRef.current) {
+      redoFunctionRef.current();
     }
   };
 
@@ -52,6 +78,12 @@ function App() {
             strokeStyle={strokeStyle}
             backgroundColor={backgroundColor}
             opacity={opacity}
+            zoom={zoom}
+            onZoomChange={handleZoomChange}
+            onUndo={(undoFunc) => { undoFunctionRef.current = undoFunc; }}
+            onRedo={(redoFunc) => { redoFunctionRef.current = redoFunc; }}
+            canUndo={(canUndoState) => setCanUndo(canUndoState)}
+            canRedo={(canRedoState) => setCanRedo(canRedoState)}
           />
         </main>
         {showToolbar && (
@@ -71,7 +103,14 @@ function App() {
           </aside>
         )}
         <footer className="bottom-controls">
-          <BottomControls />
+          <BottomControls 
+            zoom={zoom * 100}
+            onZoomChange={handleZoomChange}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
         </footer>
       </div>
     </div>
