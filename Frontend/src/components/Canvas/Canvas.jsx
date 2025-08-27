@@ -6,7 +6,6 @@ const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"
 const ERASER_RADIUS = 2;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
-const ZOOM_SENSITIVITY = 0.001;
 
 export default function Canvas({
   selectedTool,
@@ -17,7 +16,7 @@ export default function Canvas({
   opacity = 100,
   onToolChange,
   // New props for zoom and undo/redo
-  zoom,
+  zoom = 1,
   onZoomChange,
   onUndo,
   onRedo,
@@ -317,7 +316,7 @@ export default function Canvas({
       setMarkedIds([]);
       setIsDrawing(true);
     } else if (selectedTool === "laser") {
-      setPenPoints([point]);
+      setLaserPoints([point]);
       setIsDrawing(true);
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
       saveToHistory(); // Save state before drawing shape
@@ -479,7 +478,157 @@ export default function Canvas({
     }
   }
 
-    function drawShape(ctx, start, end, tool, isPreview = false, faded = false, shape = {}) {
+  function redraw() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Apply zoom and pan transformations
+    ctx.save();
+    ctx.setTransform(zoom, 0, 0, zoom, panOffset.x, panOffset.y);
+
+    shapes.forEach((shape, idx) => {
+      const fade = markedIds.includes(idx);
+      if (shape.tool === "pen") {
+        drawPenStroke(ctx, shape.points, false, fade, shape);
+      } else if (shape.tool === "laser") {
+        drawLaserStroke(ctx, shape.points, shape.opacity, shape);
+      } else if (shape.tool === "text") {
+        drawText(ctx, shape, fade);
+      } else if (shape.tool === "image") {
+        drawImage(ctx, shape, fade);
+      } else {
+        drawShape(ctx, shape.start, shape.end, shape.tool, false, fade, shape);
+      }
+    });
+
+    if (isDrawing && selectedTool === "pen" && penPoints.length) {
+      drawPenStroke(ctx, penPoints, true, false, { color: selectedColor, strokeWidth, strokeStyle, opacity: opacity / 100 });
+    }
+    if (isDrawing && selectedTool === "laser" && laserPoints.length) {
+      drawLaserStroke(ctx, laserPoints, opacity / 100, { color: selectedColor, strokeWidth, strokeStyle });
+    }
+    if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
+      drawShape(ctx, startPoint, currentPoint, selectedTool, true, false, {
+        color: selectedColor,
+        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      });
+    }
+    if (selectedTool === "eraser" && eraserPath.length > 0) {
+      drawEraserPath(ctx, eraserPath);
+    }
+    
+    ctx.restore();
+  }
+
+  function drawImage(ctx, shape, faded = false) {
+    const img = loadedImages.get(shape.id);
+    if (!img) {
+      // Image not loaded yet, show placeholder
+      ctx.save();
+      ctx.globalAlpha = faded ? 0.2 : 0.5;
+      ctx.fillStyle = "#e5e7eb";
+      ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+      ctx.strokeStyle = "#9ca3af";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+      
+      // Draw loading text
+      ctx.fillStyle = "#6b7280";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Loading...", shape.x + shape.width / 2, shape.y + shape.height / 2);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : (shape.opacity || 1);
+    
+    try {
+      ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
+    } catch (error) {
+      console.error("Error drawing image:", error);
+      // Fallback to placeholder
+      ctx.fillStyle = "#fca5a5";
+      ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+    }
+    
+    ctx.restore();
+  }
+
+  function drawText(ctx, shape, faded = false) {
+    ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : (shape.opacity || 1);
+    ctx.fillStyle = shape.color || "#000000";
+    ctx.font = `${shape.fontSize || 16}px ${shape.fontFamily || "Arial"}`;
+    ctx.textBaseline = "top";
+    
+    const lines = shape.text.split('\n');
+    const lineHeight = (shape.fontSize || 16) * 1.2;
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(line, shape.x, shape.y + (index * lineHeight));
+    });
+    
+    ctx.restore();
+  }
+
+  function drawPenStroke(ctx, points, isPreview = false, faded = false, shape = {}) {
+    const color = shape.color || selectedColor;
+    const sWidth = shape.strokeWidth || strokeWidth;
+    const sStyle = shape.strokeStyle || strokeStyle;
+    const sOpacity = shape.opacity !== undefined ? shape.opacity : (opacity / 100);
+
+    ctx.save();
+    ctx.globalAlpha = faded ? 0.35 : sOpacity;
+    applyStrokeStyle(ctx, sStyle);
+    ctx.beginPath();
+    points.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.strokeStyle = isPreview ? selectedColor : color;
+    ctx.lineWidth = isPreview ? strokeWidth : sWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLaserStroke(ctx, points, laserOpacity = 1, shape = {}) {
+    const color = shape.color || selectedColor;
+    const sWidth = shape.strokeWidth || 3;
+    const sStyle = shape.strokeStyle || strokeStyle;
+
+    ctx.save();
+    ctx.globalAlpha = laserOpacity;
+    applyStrokeStyle(ctx, sStyle);
+    ctx.beginPath();
+    points.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = sWidth;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 50;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawShape(ctx, start, end, tool, isPreview = false, faded = false, shape = {}) {
     const color = shape.color || selectedColor;
     const bgColor = shape.backgroundColor;
     const sWidth = shape.strokeWidth || strokeWidth;
@@ -537,56 +686,110 @@ export default function Canvas({
     ctx.restore();
   }
 
-  function redraw() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  function drawArrowHead(ctx, from, to, headlen = 16) {
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - headlen * Math.cos(angle - Math.PI / 6),
+      to.y - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - headlen * Math.cos(angle + Math.PI / 6),
+      to.y - headlen * Math.sin(angle + Math.PI / 6));
+  }
 
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply zoom and pan transformations
+  function drawEraserPath(ctx, points) {
     ctx.save();
-    ctx.setTransform(zoom, 0, 0, zoom, panOffset.x, panOffset.y);
-
-    shapes.forEach((shape, idx) => {
-      const fade = markedIds.includes(idx);
-      if (shape.tool === "pen") {
-        drawPenStroke(ctx, shape.points, false, fade, shape);
-      } else if (shape.tool === "laser") {
-        drawLaserStroke(ctx, shape.points, shape.opacity, shape);
-      } else if (shape.tool === "text") {
-        drawText(ctx, shape, fade);
-      } else if (shape.tool === "image") {
-        drawImage(ctx, shape, fade);
-      } else {
-        drawShape(ctx, shape.start, shape.end, shape.tool, false, fade, shape);
-      }
+    ctx.beginPath();
+    points.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
     });
-
-    if (isDrawing && selectedTool === "pen" && penPoints.length) {
-      drawPenStroke(ctx, penPoints, true, false, { color: selectedColor, strokeWidth, strokeStyle, opacity: opacity / 100 });
-    }
-    if (isDrawing && selectedTool === "laser" && laserPoints.length) {
-      drawLaserStroke(ctx, laserPoints, opacity / 100, { color: selectedColor, strokeWidth, strokeStyle });
-    }
-    if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      drawShape(ctx, startPoint, currentPoint, selectedTool, true, false, {
-        color: selectedColor,
-        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
-        strokeWidth,
-        strokeStyle,
-        opacity: opacity / 100
-      });
-    }
-    if (selectedTool === "eraser" && eraserPath.length > 0) {
-      drawEraserPath(ctx, eraserPath);
-    }
-    
+    ctx.strokeStyle = "rgba(160,160,160,0.5)";
+    ctx.lineWidth = ERASER_RADIUS * 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
     ctx.restore();
   }
 
-  // ... [Keep all your existing drawing functions unchanged - drawImage, drawText, drawPenStroke, etc.]
-  // ... [All the existing helper functions remain exactly the same]
+  function shapeIntersectsEraser(shape, eraserPts) {
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      const points = shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        for (const ep of eraserPts) {
+          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
+        }
+      }
+      return false;
+    } else if (shape.tool === "text") {
+      return eraserPts.some(ep => {
+        const dx = ep.x - shape.x;
+        const dy = ep.y - shape.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= ERASER_RADIUS * 15;
+      });
+    } else if (shape.tool === "image") {
+      return eraserPts.some(ep => {
+        return ep.x >= shape.x && ep.x <= shape.x + shape.width &&
+               ep.y >= shape.y && ep.y <= shape.y + shape.height;
+      });
+    }
+    return eraserPts.some(ep => isPointInShape(shape, ep));
+  }
+
+  function distance(p1, p2) {
+    return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+  }
+
+  function isPointInShape(shape, point) {
+    const { start, end, tool } = shape;
+    switch (tool) {
+      case "square":
+      case "rectangle":
+        return pointInRect(point, start, end);
+      case "diamond":
+        return pointInDiamond(point, start, end);
+      case "circle":
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
+        const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
+        return distance(point, { x: cx, y: cy }) <= r;
+      case "line":
+      case "arrow":
+        return pointNearLine(point, start, end, ERASER_RADIUS);
+      default:
+        return false;
+    }
+  }
+
+  function pointInRect(point, start, end) {
+    const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
+    const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
+    return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+  }
+
+  function pointInDiamond(point, start, end) {
+    const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+    const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
+    const dx = Math.abs(point.x - cx), dy = Math.abs(point.y - cy);
+    if (w === 0 || h === 0) return false;
+    return dx / w + dy / h <= 1;
+  }
+
+  function pointNearLine(point, start, end, threshold) {
+    const A = point.x - start.x, B = point.y - start.y;
+    const C = end.x - start.x, D = end.y - start.y;
+    const dot = A * C + B * D, len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+    let xx, yy;
+    if (param < 0) { xx = start.x; yy = start.y; }
+    else if (param > 1) { xx = end.x; yy = end.y; }
+    else { xx = start.x + param * C; yy = start.y + param * D; }
+    const dx = point.x - xx, dy = point.y - yy;
+    return dx * dx + dy * dy <= threshold * threshold;
+  }
 
   const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
   const handleCursorMove = (e) => {
@@ -624,7 +827,18 @@ export default function Canvas({
       {selectedTool === "eraser" && (
         <div
           className="eraser-cursor-pulse"
-          style={{ left: mousePos.x, top: mousePos.y, width: ERASER_RADIUS * 2, height: ERASER_RADIUS * 2 }}
+          style={{ 
+            left: mousePos.x, 
+            top: mousePos.y, 
+            width: ERASER_RADIUS * 2 * zoom, 
+            height: ERASER_RADIUS * 2 * zoom,
+            position: 'absolute',
+            border: '1px solid rgba(160,160,160,0.5)',
+            borderRadius: '50%',
+            pointerEvents: 'none',
+            zIndex: 1000,
+            transform: 'translate(-50%, -50%)'
+          }}
         />
       )}
       
@@ -663,7 +877,7 @@ export default function Canvas({
             minWidth: '200px',
             height: '100px',
             minHeight: '60px',
-            fontSize: `${textInput.fontSize * zoom}px`,
+            fontSize: `${textInput.fontSize}px`,
             fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
             fontWeight: 400,
             lineHeight: 1.4,
@@ -675,9 +889,7 @@ export default function Canvas({
             outline: 'none',
             padding: '12px 16px',
             resize: 'both',
-            transition: 'all 0.005s ease-in-out',
-            transform: `scale(${zoom})`,
-            transformOrigin: 'top left'
+            transition: 'all 0.005s ease-in-out'
           }}
           placeholder="Enter your text here..."
           aria-label="Text input for whiteboard"
@@ -689,5 +901,3 @@ export default function Canvas({
     </>
   );
 }
-
-// [Include all the existing helper functions here - they remain unchanged]
