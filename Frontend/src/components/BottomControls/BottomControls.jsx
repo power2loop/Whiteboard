@@ -125,18 +125,7 @@ const BottomControls = ({
             <div 
               ref={colorPickerRef}
               className="color-picker-popup"
-            >
-              <div className="color-picker-header">
-                <span>Color Picker</span>
-                <button 
-                  className="close-button"
-                  onClick={() => setShowColorPicker(false)}
-                  aria-label="Close color picker"
-                >
-                  ×
-                </button>
-              </div>
-              
+            > 
               <ColorPicker 
                 color={color} 
                 onChange={handleColorChange}
