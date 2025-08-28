@@ -17,62 +17,62 @@ project-root/
 │   │       └── validate.js
 │   └── tests/
 │       └── boards.test.js
-
-├── Frontend/
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── index.html
-│   ├── public/
-│   │   └── favicon.ico
-│   └── src/
-│       ├── app/
-│       │   ├── App.jsx
-│       │   └── routes.jsx
-│       ├── pages/
-│       │   ├── Home/
-│       │   │   └── HomePage.jsx
-│       │   └── Board/
-│       │       └── BoardPage.jsx
-│       ├── components/
-│       │   ├── canvas/
-│       │   │   ├── WhiteboardCanvas.jsx
-│       │   │   ├── DrawingLayer.jsx
-│       │   │   ├── SelectionLayer.jsx
-│       │   │   └── useCanvasEvents.js
-│       │   ├── toolbar/
-│       │   │   ├── TopToolbar.jsx
-│       │   │   ├── ColorPicker.jsx
-│       │   │   └── StrokeWidthPicker.jsx
-│       │   ├── sidebar/
-│       │   │   └── RightSidebar.jsx   # properties panel
-│       │   └── common/
-│       │       ├── Button.jsx
-│       │       └── Modal.jsx
-│       ├── store/
-│       │   ├── store.js
-│       │   ├── boardSlice.js
-│       │   └── uiSlice.js
-│       ├── services/
-│       │   ├── api/
-│       │   │   ├── httpClient.js
-│       │   │   └── boardsApi.js       # save/load/export HTTP calls
-│       │   └── realtime/
-│       │       ├── socket.js          # Socket.IO client instance
-│       │       └── events.js          # event names + payload shapes
-│       ├── styles/
-│       │   └── globals.css
-│       ├── utils/
-│       │   ├── geometry.js
-│       │   ├── hitTest.js
-│       │   └── id.js
-│       └── tests/
-│           └── board.spec.jsx
+Frontend
+│── node_modules
+│── src
+│   │── app
+│   │   ├── App.css
+│   │   ├── App.jsx
+│   │
+│   │── assets
+│   │
+│   │── components
+│   │   │── BottomControls
+│   │   │   ├── BottomControls.css
+│   │   │   ├── BottomControls.jsx
+│   │   │
+│   │   │── Canvas
+│   │   │   ├── Canvas.css
+│   │   │   ├── Canvas.jsx
+│   │   │
+│   │   │── Rightbar
+│   │   │   ├── Rightbar.css
+│   │   │   ├── Rightbar.jsx
+│   │   │
+│   │   │── Sidebar
+│   │   │   ├── Sidebar.css
+│   │   │   ├── Sidebar.jsx
+│   │   │
+│   │   │── Texttool
+│   │   │   ├── Texttool.css
+│   │   │   ├── Texttool.jsx
+│   │   │
+│   │   │── Toolbar
+│   │   │   ├── Toolbar.css
+│   │   │   ├── Toolbar.jsx
+│   │   │
+│   │   │── Topbar
+│   │   │   ├── Topbar.css
+│   │   │   ├── Topbar.jsx
+│   │
+│   │── pages
+│   │   │── Board
+│   │   │   ├── BoardPage.jsx
+│   │   │
+│   │   │── Home
+│   │   │   ├── HomePage.jsx
+│   │
+│   │── services
+│   │   │── realtime
+│   │
+│   ├── index.css
+│   ├── main.jsx
 │
-├── .gitignore
-├── README.md
-└── scripts/
-    ├── dev.sh                      # run both Frontend and Backend
-    └── build.sh
-
-    hello ji
-    vdwoubwu
+│── .gitignore
+│── eslint.config.js
+│── index.html
+│── package-lock.json
+│── package.json
+│── README.md
+│── vite.config.js
+│── Note.txt
