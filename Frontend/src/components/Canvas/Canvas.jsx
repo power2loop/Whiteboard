@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
+import useUndoRedo from './hooks/useUndoRedo';
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
@@ -37,14 +38,13 @@ export default function Canvas({
   const [selectionBox, setSelectionBox] = useState(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  // Pan states (removed zoom functionality)
+  // Pan states
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
-  // History management for undo/redo
-  const [undoHistory, setUndoHistory] = useState([]);
-  const [redoHistory, setRedoHistory] = useState([]);
+  // Use the custom undo/redo hook
+  const { saveToHistory, undo, redo, clearHistory, canUndo, canRedo } = useUndoRedo();
 
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -65,9 +65,7 @@ export default function Canvas({
 
     // Save current state to history before clearing
     if (shapes.length > 0) {
-      const currentShapes = JSON.parse(JSON.stringify(shapes));
-      setUndoHistory(prev => [...prev, currentShapes]);
-      setRedoHistory([]); // Clear redo history
+      saveToHistory(shapes);
 
       // Clear all shapes
       setShapes([]);
@@ -97,7 +95,7 @@ export default function Canvas({
 
       console.log('Canvas cleared successfully');
     }
-  }, [shapes]);
+  }, [shapes, saveToHistory]);
 
   // Expose clear function to parent component
   useEffect(() => {
@@ -250,39 +248,21 @@ export default function Canvas({
     return selectedIndices;
   }, [shapes]);
 
-  // Save state to history for undo/redo
-  const saveToHistory = useCallback(() => {
-    setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
-    setRedoHistory([]); // Clear redo history when new action is performed
-  }, [shapes]);
-
-  // Undo function
+  // Undo function using the hook
   const handleUndo = useCallback(() => {
-    if (undoHistory.length === 0) return;
-
-    const previousState = undoHistory[undoHistory.length - 1];
-    setRedoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
-    setShapes(previousState);
-    setUndoHistory(prev => prev.slice(0, -1));
-
+    undo(shapes, setShapes);
     // Clear selection when undoing
     setSelectedElements([]);
     setSelectionBox(null);
-  }, [undoHistory, shapes]);
+  }, [undo, shapes]);
 
-  // Redo function
+  // Redo function using the hook
   const handleRedo = useCallback(() => {
-    if (redoHistory.length === 0) return;
-
-    const nextState = redoHistory[redoHistory.length - 1];
-    setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
-    setShapes(nextState);
-    setRedoHistory(prev => prev.slice(0, -1));
-
+    redo(shapes, setShapes);
     // Clear selection when redoing
     setSelectedElements([]);
     setSelectionBox(null);
-  }, [redoHistory, shapes]);
+  }, [redo, shapes]);
 
   // Expose undo/redo functions to parent component
   useEffect(() => {
@@ -292,9 +272,9 @@ export default function Canvas({
 
   // Provide undo/redo availability to parent
   useEffect(() => {
-    if (onCanUndo) onCanUndo(undoHistory.length > 0);
-    if (onCanRedo) onCanRedo(redoHistory.length > 0);
-  }, [undoHistory.length, redoHistory.length, onCanUndo, onCanRedo]);
+    if (onCanUndo) onCanUndo(canUndo);
+    if (onCanRedo) onCanRedo(canRedo);
+  }, [canUndo, canRedo, onCanUndo, onCanRedo]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -372,7 +352,7 @@ export default function Canvas({
                   const centerX = (canvas.width / 2 - panOffset.x);
                   const centerY = (canvas.height / 2 - panOffset.y);
 
-                  saveToHistory();
+                  saveToHistory(shapes);
 
                   const imageId = `img_${Date.now()}_${Math.random()}`;
 
@@ -527,7 +507,7 @@ export default function Canvas({
     if (selectedTool === "image") {
       if (imageToPlace) {
         // Place the image at click location
-        saveToHistory();
+        saveToHistory(shapes);
 
         const imageId = `img_${Date.now()}_${Math.random()}`;
 
@@ -620,7 +600,7 @@ export default function Canvas({
     }
 
     if (selectedTool === "pen") {
-      saveToHistory();
+      saveToHistory(shapes);
       setPenPoints([point]);
       setIsDrawing(true);
     } else if (selectedTool === "eraser") {
@@ -631,7 +611,7 @@ export default function Canvas({
       setLaserPoints([point]);
       setIsDrawing(true);
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
-      saveToHistory();
+      saveToHistory(shapes);
       setIsDrawing(true);
       setStartPoint(point);
       setCurrentPoint(point);
@@ -734,7 +714,7 @@ export default function Canvas({
       setLaserPoints([]);
     } else if (selectedTool === "eraser" && eraserPath.length > 0) {
       if (markedIds.length > 0) {
-        saveToHistory();
+        saveToHistory(shapes);
         setShapes(shapes.filter((_, i) => !markedIds.includes(i)));
       }
       setMarkedIds([]);
@@ -758,7 +738,7 @@ export default function Canvas({
   // Simple text submission
   const handleTextSubmit = () => {
     if (textInput.value.trim()) {
-      saveToHistory();
+      saveToHistory(shapes);
       setShapes(prev => [...prev, {
         tool: "text",
         text: textInput.value,
@@ -825,7 +805,7 @@ export default function Canvas({
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply pan transformation (removed zoom)
+    // Apply pan transformation
     ctx.save();
     ctx.translate(panOffset.x, panOffset.y);
 
