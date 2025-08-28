@@ -63,6 +63,9 @@ export default function Canvas({
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
 
+  // Drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
     console.log('Clearing entire canvas');
@@ -370,11 +373,87 @@ export default function Canvas({
         e.preventDefault();
         setSelectedElements(shapes.map((_, index) => index));
       }
+
+      // Ctrl/Cmd + V to paste image from clipboard
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        handlePasteFromClipboard();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [shapes.length]);
+
+  // Handle paste from clipboard
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        console.log('Clipboard API not supported');
+        return;
+      }
+
+      const clipboardItems = await navigator.clipboard.read();
+
+      for (const clipboardItem of clipboardItems) {
+        for (const type of clipboardItem.types) {
+          if (type.startsWith('image/')) {
+            const blob = await clipboardItem.getType(type);
+            const reader = new FileReader();
+
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const maxSize = 300;
+                let width = img.naturalWidth;
+                let height = img.naturalHeight;
+
+                if (width > maxSize || height > maxSize) {
+                  const ratio = Math.min(maxSize / width, maxSize / height);
+                  width = width * ratio;
+                  height = height * ratio;
+                }
+
+                // Place image at center of canvas
+                const canvas = canvasRef.current;
+                if (canvas) {
+                  const centerX = (canvas.width / 2 - panOffset.x) / zoom;
+                  const centerY = (canvas.height / 2 - panOffset.y) / zoom;
+
+                  saveToHistory();
+
+                  const imageId = `img_${Date.now()}_${Math.random()}`;
+
+                  const newImg = new Image();
+                  newImg.onload = () => {
+                    setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
+                  };
+                  newImg.src = event.target.result;
+
+                  setShapes(prev => [...prev, {
+                    tool: "image",
+                    id: imageId,
+                    x: centerX - width / 2,
+                    y: centerY - height / 2,
+                    width,
+                    height,
+                    src: event.target.result,
+                    opacity: opacity / 100
+                  }]);
+                }
+              };
+              img.src = event.target.result;
+            };
+
+            reader.readAsDataURL(blob);
+            return; // Exit after handling first image
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error pasting from clipboard:', error);
+    }
+  };
 
   // Fade out laser strokes automatically
   useEffect(() => {
@@ -427,6 +506,76 @@ export default function Canvas({
     }
   }, [selectedTool]);
 
+  // Drag and drop event handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set isDragOver to false if we're actually leaving the canvas
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+
+    if (imageFile) {
+      // Get drop position
+      const dropPoint = getRelativeCoords(e);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSize = 300;
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = width * ratio;
+            height = height * ratio;
+          }
+
+          // Directly place the image at drop position
+          saveToHistory();
+
+          const imageId = `img_${Date.now()}_${Math.random()}`;
+
+          const newImg = new Image();
+          newImg.onload = () => {
+            setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
+          };
+          newImg.src = event.target.result;
+
+          setShapes(prev => [...prev, {
+            tool: "image",
+            id: imageId,
+            x: dropPoint.x - width / 2, // Center the image on drop point
+            y: dropPoint.y - height / 2,
+            width,
+            height,
+            src: event.target.result,
+            opacity: opacity / 100
+          }]);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(imageFile);
+    }
+  };
+
   function getRelativeCoords(e) {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left - panOffset.x) / zoom;
@@ -448,7 +597,7 @@ export default function Canvas({
     return points;
   }
 
-  // Handle file selection for images
+  // Handle file selection for images - SINGLE USE VERSION
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -480,11 +629,9 @@ export default function Canvas({
     }
 
     e.target.value = '';
-    if (onToolChange) {
-      onToolChange("select");
-    }
   };
 
+  // FIXED handleMouseDown function - SINGLE USE IMAGE PLACEMENT
   const handleMouseDown = (e) => {
     const point = getRelativeCoords(e);
 
@@ -493,6 +640,44 @@ export default function Canvas({
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       return;
+    }
+
+    // Handle image placement - SINGLE USE VERSION
+    if (selectedTool === "image") {
+      if (imageToPlace) {
+        // Place the image at click location
+        saveToHistory();
+
+        const imageId = `img_${Date.now()}_${Math.random()}`;
+
+        const img = new Image();
+        img.onload = () => {
+          setLoadedImages(prev => new Map(prev.set(imageId, img)));
+        };
+        img.src = imageToPlace.src;
+
+        setShapes(prev => [...prev, {
+          tool: "image",
+          id: imageId,
+          x: point.x - imageToPlace.width / 2,
+          y: point.y - imageToPlace.height / 2,
+          width: imageToPlace.width,
+          height: imageToPlace.height,
+          src: imageToPlace.src,
+          opacity: opacity / 100
+        }]);
+
+        // KEY CHANGE: Clear the imageToPlace and switch to select tool after placement
+        setImageToPlace(null);
+        if (onToolChange) {
+          onToolChange("select");
+        }
+        return;
+      } else {
+        // If no image is loaded yet, trigger file selection
+        fileInputRef.current?.click();
+        return;
+      }
     }
 
     // Handle selection tool
@@ -530,33 +715,6 @@ export default function Canvas({
       return;
     }
 
-    // Handle image placement
-    if (imageToPlace) {
-      saveToHistory(); // Save state before adding image
-
-      const imageId = `img_${Date.now()}_${Math.random()}`;
-
-      const img = new Image();
-      img.onload = () => {
-        setLoadedImages(prev => new Map(prev.set(imageId, img)));
-      };
-      img.src = imageToPlace.src;
-
-      setShapes(prev => [...prev, {
-        tool: "image",
-        id: imageId,
-        x: point.x,
-        y: point.y,
-        width: imageToPlace.width,
-        height: imageToPlace.height,
-        src: imageToPlace.src,
-        opacity: opacity / 100
-      }]);
-
-      setImageToPlace(null);
-      return;
-    }
-
     if (selectedTool === "text") {
       const fontSize = Math.max(strokeWidth * 8, 16);
 
@@ -576,8 +734,8 @@ export default function Canvas({
       return;
     }
 
-    // Clear selection when starting to draw (unless using select tool)
-    if (selectedTool !== "select") {
+    // Clear selection when starting to draw (unless using select tool or image tool)
+    if (selectedTool !== "select" && selectedTool !== "image") {
       setSelectedElements([]);
       setSelectionBox(null);
     }
@@ -1204,9 +1362,15 @@ export default function Canvas({
         onMouseMove={handleCursorMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         tabIndex={0}
         aria-label="whiteboard-canvas"
-        style={{ cursor: imageToPlace ? 'crosshair' : 'default' }}
+        style={{
+          cursor: imageToPlace ? 'crosshair' : 'default',
+          backgroundColor: isDragOver ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
+        }}
       />
 
       {/* Hidden file input for image selection */}
@@ -1217,6 +1381,74 @@ export default function Canvas({
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
+
+      {/* Enhanced drag over visual feedback */}
+      {isDragOver && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            height: '300px',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '3px dashed #3b82f6',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            color: '#3b82f6',
+            fontWeight: 'bold',
+            pointerEvents: 'none',
+            zIndex: 999,
+            textAlign: 'center',
+            gap: '16px'
+          }}
+        >
+          <div style={{ fontSize: '48px' }}>📁</div>
+          <div>Drop image here</div>
+          <div style={{ fontSize: '14px', fontWeight: 'normal', color: '#6b7280' }}>
+            Or press Ctrl+V to paste from clipboard
+          </div>
+        </div>
+      )}
+
+      {/* Show message when image tool is selected but no image is ready to place */}
+      {selectedTool === "image" && !imageToPlace && !isDragOver && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '400px',
+            height: '200px',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: '2px dashed #3b82f6',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            color: '#3b82f6',
+            fontWeight: 'bold',
+            pointerEvents: 'none',
+            zIndex: 998,
+            textAlign: 'center',
+            gap: '16px'
+          }}
+        >
+          <div style={{ fontSize: '48px' }}>🖼️</div>
+          <div>Click anywhere to select and place image</div>
+          <div style={{ fontSize: '14px', fontWeight: 'normal', color: '#6b7280' }}>
+            Or drag & drop an image, or press Ctrl+V to paste
+          </div>
+        </div>
+      )}
 
       {selectedTool === "eraser" && (
         <div
