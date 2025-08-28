@@ -1,14 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { ColorPicker, useColor } from "react-color-palette";
+import "react-color-palette/css";
 import './BottomControls.css';
-import { BiUndo } from "react-icons/bi";
-import { BiRedo } from "react-icons/bi";
+import { BiUndo, BiRedo } from "react-icons/bi";
 
 const BottomControls = ({
   onUndo,
   onRedo,
   canUndo = false,
-  canRedo = false
+  canRedo = false,
+  selectedColor = "#8F4A3D",
+  onColorChange
 }) => {
+  const [color, setColor] = useColor(selectedColor);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorPickerRef = useRef(null);
+  const colorButtonRef = useRef(null);
+
   const handleUndo = () => {
     if (canUndo && onUndo) {
       onUndo();
@@ -21,9 +29,67 @@ const BottomControls = ({
     }
   };
 
+  const handleColorChange = (newColor) => {
+    setColor(newColor);
+    if (onColorChange) {
+      onColorChange(newColor.hex);
+    }
+  };
+
+  const toggleColorPicker = () => {
+    setShowColorPicker(!showColorPicker);
+  };
+
+  // Safe color hex extraction
+  const getColorHex = () => {
+    if (!color || !color.hex) return selectedColor;
+    return color.hex;
+  };
+
+  // Safe color hex display (without #)
+  const getDisplayHex = () => {
+    const hex = getColorHex();
+    return hex.startsWith('#') ? hex.slice(1).toUpperCase() : hex.toUpperCase();
+  };
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(event.target) &&
+        colorButtonRef.current &&
+        !colorButtonRef.current.contains(event.target)
+      ) {
+        setShowColorPicker(false);
+      }
+    };
+
+    if (showColorPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColorPicker]);
+
+  // Update color when prop changes
+  useEffect(() => {
+    if (selectedColor && selectedColor !== getColorHex()) {
+      setColor(selectedColor);
+    }
+  }, [selectedColor]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Close color picker on Escape
+      if (e.key === 'Escape' && showColorPicker) {
+        setShowColorPicker(false);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
@@ -35,10 +101,62 @@ const BottomControls = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, onUndo, onRedo]);
+  }, [canUndo, canRedo, onUndo, onRedo, showColorPicker]);
 
   return (
     <div className='bottomcontrols-container'>
+      <div className="control-group color-control-group">
+        <div className="color-picker-wrapper">
+          <button
+            ref={colorButtonRef}
+            className="color-picker-button"
+            onClick={toggleColorPicker}
+            aria-label="Select color"
+            title="Select color"
+          >
+            <div 
+              className="color-preview-circle"
+              style={{ backgroundColor: getColorHex() }}
+            />
+            <span className="color-hex-display">#{getDisplayHex()}</span>
+          </button>
+          
+          {showColorPicker && color && (
+            <div 
+              ref={colorPickerRef}
+              className="color-picker-popup"
+            >
+              <div className="color-picker-header">
+                <span>Color Picker</span>
+                <button 
+                  className="close-button"
+                  onClick={() => setShowColorPicker(false)}
+                  aria-label="Close color picker"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <ColorPicker 
+                color={color} 
+                onChange={handleColorChange}
+                hideInput={["rgb", "hsv"]}
+              />
+              
+              <div className="color-picker-footer">
+                <div className="selected-color-info">
+                  <div 
+                    className="selected-color-swatch"
+                    style={{ backgroundColor: getColorHex() }}
+                  />
+                  <span className="selected-color-text">{getColorHex().toUpperCase()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      
       <div className='control-group'>
         <button
           className={`control-btn ${!canUndo ? 'disabled' : ''}`}

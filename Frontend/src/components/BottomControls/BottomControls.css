@@ -129,3 +129,181 @@
 .control-btn {
   transition: all 0.2s ease;
 }
+
+
+/* Color picker specific styles */
+.color-control-group {
+  position: relative;
+}
+
+.color-picker-wrapper {
+  position: relative;
+}
+
+.color-picker-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.color-picker-button:hover {
+  border-color: #c0c0c0;
+  background: #f8f8f8;
+}
+
+.color-picker-button:active {
+  transform: scale(0.98);
+}
+
+.color-preview-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.color-hex-display {
+  color: #333333;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.color-picker-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 12px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  z-index: 1000;
+  width: 250px;
+  /* height: 400px; */
+  animation: colorPickerSlideUp 0.2s ease-out;
+}
+
+@keyframes colorPickerSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.color-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.color-picker-header span {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #666666;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background: #f0f0f0;
+  color: #333333;
+}
+
+.color-picker-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.selected-color-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.selected-color-text {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333333;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .color-picker-popup {
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 280px;
+  }
+}
+
+/* Override react-color-palette styles for better integration */
+.rcp {
+  width: 100% !important;
+}
+
+.rcp-saturation {
+  border-radius: 8px !important;
+  margin-bottom: 12px !important;
+}
+
+.rcp-hue {
+  border-radius: 6px !important;
+  height: 12px !important;
+  margin-bottom: 12px !important;
+}
+
+.rcp-fields {
+  gap: 8px !important;
+}
+
+.rcp-input {
+  border-radius: 6px !important;
+  border: 1px solid #e0e0e0 !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-size: 13px !important;
+}
