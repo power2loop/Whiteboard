@@ -18,9 +18,6 @@ function App() {
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [opacity, setOpacity] = useState(100);
 
-  // Zoom state
-  const [zoom, setZoom] = useState(1);
-
   // Undo/Redo state
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -38,10 +35,6 @@ function App() {
     } else {
       setShowToolbar(true);
     }
-  };
-
-  const handleZoomChange = (newZoom) => {
-    setZoom(newZoom);
   };
 
   const handleUndo = () => {
@@ -121,8 +114,6 @@ function App() {
             strokeStyle={strokeStyle}
             backgroundColor={backgroundColor}
             opacity={opacity}
-            zoom={zoom}
-            onZoomChange={handleZoomChange}
             onUndoFunction={(undoFn) => { undoFunctionRef.current = undoFn; }}
             onRedoFunction={(redoFn) => { redoFunctionRef.current = redoFn; }}
             onCanUndo={setCanUndo}
@@ -133,8 +124,6 @@ function App() {
         </main>
         <footer className="bottom-controls">
           <BottomControls
-            zoom={zoom * 100}
-            onZoomChange={handleZoomChange}
             onUndo={handleUndo}
             onRedo={handleRedo}
             canUndo={canUndo}

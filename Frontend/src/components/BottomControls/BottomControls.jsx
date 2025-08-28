@@ -1,29 +1,14 @@
-//BottomControls.jsx
 import { useState, useEffect } from "react";
 import './BottomControls.css';
-import { HiOutlineMinus } from "react-icons/hi";
-import { RxPlus } from "react-icons/rx";
 import { BiUndo } from "react-icons/bi";
 import { BiRedo } from "react-icons/bi";
 
-const BottomControls = ({ 
-  zoom = 100, 
-  onZoomChange,
+const BottomControls = ({
   onUndo,
   onRedo,
   canUndo = false,
-  canRedo = false 
+  canRedo = false
 }) => {
-  const decrease = () => {
-    const newZoom = Math.max(10, zoom - 10);
-    onZoomChange?.(newZoom / 100);
-  };
-
-  const increase = () => {
-    const newZoom = Math.min(500, zoom + 10);
-    onZoomChange?.(newZoom / 100);
-  };
-
   const handleUndo = () => {
     if (canUndo && onUndo) {
       onUndo();
@@ -54,27 +39,8 @@ const BottomControls = ({
 
   return (
     <div className='bottomcontrols-container'>
-      <div className="control-group">
-        <button 
-          className="control-btn" 
-          onClick={decrease}
-          disabled={zoom <= 10}
-          aria-label="Zoom out"
-        >
-          <HiOutlineMinus />
-        </button>
-        <span className="control-value">{Math.round(zoom)}%</span>
-        <button 
-          className="control-btn" 
-          onClick={increase}
-          disabled={zoom >= 500}
-          aria-label="Zoom in"
-        >
-          <RxPlus />
-        </button>
-      </div>
       <div className='control-group'>
-        <button 
+        <button
           className={`control-btn ${!canUndo ? 'disabled' : ''}`}
           onClick={handleUndo}
           disabled={!canUndo}
@@ -83,7 +49,7 @@ const BottomControls = ({
         >
           <BiUndo />
         </button>
-        <button 
+        <button
           className={`control-btn ${!canRedo ? 'disabled' : ''}`}
           onClick={handleRedo}
           disabled={!canRedo}

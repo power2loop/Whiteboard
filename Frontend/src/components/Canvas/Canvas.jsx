@@ -12,8 +12,6 @@ export default function Canvas({
   backgroundColor = "#ffffff",
   opacity = 100,
   onToolChange,
-  // New props for zoom and undo/redo
-  zoom = 1,
   onUndoFunction,
   onRedoFunction,
   onCanUndo,
@@ -39,7 +37,7 @@ export default function Canvas({
   const [selectionBox, setSelectionBox] = useState(null);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  // Zoom and pan states
+  // Pan states (removed zoom functionality)
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
@@ -252,26 +250,6 @@ export default function Canvas({
     return selectedIndices;
   }, [shapes]);
 
-  // Function to constrain pan offset within bounds
-  const constrainPanOffset = useCallback((offset, currentZoom) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return offset;
-
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-
-    // Calculate the bounds for panning based on zoom level
-    const maxPanX = Math.max(0, (currentZoom - 1) * canvasWidth);
-    const maxPanY = Math.max(0, (currentZoom - 1) * canvasHeight);
-    const minPanX = Math.min(0, canvasWidth - (currentZoom * canvasWidth));
-    const minPanY = Math.min(0, canvasHeight - (currentZoom * canvasHeight));
-
-    return {
-      x: Math.max(minPanX, Math.min(maxPanX, offset.x)),
-      y: Math.max(minPanY, Math.min(maxPanY, offset.y))
-    };
-  }, []);
-
   // Save state to history for undo/redo
   const saveToHistory = useCallback(() => {
     setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
@@ -318,26 +296,6 @@ export default function Canvas({
     if (onCanRedo) onCanRedo(redoHistory.length > 0);
   }, [undoHistory.length, redoHistory.length, onCanUndo, onCanRedo]);
 
-  // Update pan offset when zoom changes to keep content centered and within bounds
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // Keep the center point stable when zooming
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-
-    // Calculate new pan offset to keep center point stable
-    const newPanOffset = {
-      x: centerX - (centerX * zoom),
-      y: centerY - (centerY * zoom)
-    };
-
-    // Apply bounds constraint
-    const constrainedOffset = constrainPanOffset(newPanOffset, zoom);
-    setPanOffset(constrainedOffset);
-  }, [zoom, constrainPanOffset]);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -351,7 +309,7 @@ export default function Canvas({
       canvas.height = window.innerHeight;
     }
     redraw();
-  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, zoom, panOffset, selectedElements, selectionBox, isSelecting]);
+  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panOffset, selectedElements, selectionBox, isSelecting]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -411,8 +369,8 @@ export default function Canvas({
                 // Place image at center of canvas
                 const canvas = canvasRef.current;
                 if (canvas) {
-                  const centerX = (canvas.width / 2 - panOffset.x) / zoom;
-                  const centerY = (canvas.height / 2 - panOffset.y) / zoom;
+                  const centerX = (canvas.width / 2 - panOffset.x);
+                  const centerY = (canvas.height / 2 - panOffset.y);
 
                   saveToHistory();
 
@@ -502,8 +460,8 @@ export default function Canvas({
 
   function getRelativeCoords(e) {
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panOffset.x) / zoom;
-    const y = (e.clientY - rect.top - panOffset.y) / zoom;
+    const x = e.clientX - rect.left - panOffset.x;
+    const y = e.clientY - rect.top - panOffset.y;
     return { x, y };
   }
 
@@ -521,7 +479,7 @@ export default function Canvas({
     return points;
   }
 
-  // Handle file selection for images - SINGLE USE VERSION
+  // Handle file selection for images
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -555,7 +513,6 @@ export default function Canvas({
     e.target.value = '';
   };
 
-  // FIXED handleMouseDown function - SINGLE USE IMAGE PLACEMENT
   const handleMouseDown = (e) => {
     const point = getRelativeCoords(e);
 
@@ -566,7 +523,7 @@ export default function Canvas({
       return;
     }
 
-    // Handle image placement - SINGLE USE VERSION
+    // Handle image placement
     if (selectedTool === "image") {
       if (imageToPlace) {
         // Place the image at click location
@@ -591,14 +548,12 @@ export default function Canvas({
           opacity: opacity / 100
         }]);
 
-        // KEY CHANGE: Clear the imageToPlace and switch to select tool after placement
         setImageToPlace(null);
         if (onToolChange) {
           onToolChange("select");
         }
         return;
       } else {
-        // If no image is loaded yet, trigger file selection
         fileInputRef.current?.click();
         return;
       }
@@ -665,7 +620,7 @@ export default function Canvas({
     }
 
     if (selectedTool === "pen") {
-      saveToHistory(); // Save state before drawing
+      saveToHistory();
       setPenPoints([point]);
       setIsDrawing(true);
     } else if (selectedTool === "eraser") {
@@ -676,7 +631,7 @@ export default function Canvas({
       setLaserPoints([point]);
       setIsDrawing(true);
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
-      saveToHistory(); // Save state before drawing shape
+      saveToHistory();
       setIsDrawing(true);
       setStartPoint(point);
       setCurrentPoint(point);
@@ -689,14 +644,10 @@ export default function Canvas({
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
 
-      const newPanOffset = {
+      setPanOffset({
         x: panOffset.x + deltaX,
         y: panOffset.y + deltaY
-      };
-
-      // Apply bounds constraint during panning
-      const constrainedOffset = constrainPanOffset(newPanOffset, zoom);
-      setPanOffset(constrainedOffset);
+      });
 
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       return;
@@ -783,7 +734,7 @@ export default function Canvas({
       setLaserPoints([]);
     } else if (selectedTool === "eraser" && eraserPath.length > 0) {
       if (markedIds.length > 0) {
-        saveToHistory(); // Save state before erasing
+        saveToHistory();
         setShapes(shapes.filter((_, i) => !markedIds.includes(i)));
       }
       setMarkedIds([]);
@@ -807,7 +758,7 @@ export default function Canvas({
   // Simple text submission
   const handleTextSubmit = () => {
     if (textInput.value.trim()) {
-      saveToHistory(); // Save state before adding text
+      saveToHistory();
       setShapes(prev => [...prev, {
         tool: "text",
         text: textInput.value,
@@ -874,9 +825,9 @@ export default function Canvas({
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom and pan transformations
+    // Apply pan transformation (removed zoom)
     ctx.save();
-    ctx.setTransform(zoom, 0, 0, zoom, panOffset.x, panOffset.y);
+    ctx.translate(panOffset.x, panOffset.y);
 
     shapes.forEach((shape, idx) => {
       const fade = markedIds.includes(idx);
@@ -1290,7 +1241,7 @@ export default function Canvas({
         aria-label="whiteboard-canvas"
         style={{
           cursor: imageToPlace ? 'crosshair' : 'default',
-          backgroundColor: "" ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
+          backgroundColor: 'transparent'
         }}
       />
 
@@ -1309,8 +1260,8 @@ export default function Canvas({
           style={{
             left: mousePos.x,
             top: mousePos.y,
-            width: ERASER_RADIUS * 2 * zoom,
-            height: ERASER_RADIUS * 2 * zoom,
+            width: ERASER_RADIUS * 2,
+            height: ERASER_RADIUS * 2,
             position: 'absolute',
             border: '1px solid rgba(160,160,160,0.5)',
             borderRadius: '50%',
@@ -1328,8 +1279,8 @@ export default function Canvas({
             position: 'absolute',
             left: mousePos.x,
             top: mousePos.y,
-            width: imageToPlace.width * zoom,
-            height: imageToPlace.height * zoom,
+            width: imageToPlace.width,
+            height: imageToPlace.height,
             border: '2px dashed #3b82f6',
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
             pointerEvents: 'none',
@@ -1349,8 +1300,8 @@ export default function Canvas({
           className="whiteboard-text-input"
           style={{
             position: 'absolute',
-            left: (textInput.x * zoom) + panOffset.x,
-            top: (textInput.y * zoom) + panOffset.y - 10,
+            left: textInput.x + panOffset.x,
+            top: textInput.y + panOffset.y - 10,
             zIndex: 1000,
             width: '300px',
             minWidth: '200px',
