@@ -1,5 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import useUndoRedo from './hooks/useUndoRedo';
+import useCanvasDrawing from './hooks/useCanvasDrawing';
+import useCanvasSelection from './hooks/useCanvasSelection';
+import useCanvasEraser from './hooks/useCanvasEraser';
+import useCanvasPanning from './hooks/useCanvasPanning';
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
@@ -24,24 +28,7 @@ export default function Canvas({
   const textAreaRef = useRef(null);
   const fileInputRef = useRef(null);
   const [shapes, setShapes] = useState([]);
-  const [penPoints, setPenPoints] = useState([]);
-  const [laserPoints, setLaserPoints] = useState([]);
-  const [eraserPath, setEraserPath] = useState([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPoint, setStartPoint] = useState(null);
-  const [currentPoint, setCurrentPoint] = useState(null);
-  const [markedIds, setMarkedIds] = useState([]);
   const [loadedImages, setLoadedImages] = useState(new Map());
-
-  // Selection states
-  const [selectedElements, setSelectedElements] = useState([]);
-  const [selectionBox, setSelectionBox] = useState(null);
-  const [isSelecting, setIsSelecting] = useState(false);
-
-  // Pan states
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -55,13 +42,7 @@ export default function Canvas({
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
 
-  // Clear selection helper function for undo/redo hook
-  const clearSelection = useCallback(() => {
-    setSelectedElements([]);
-    setSelectionBox(null);
-  }, []);
-
-  // Use the enhanced undo/redo hook - it handles all undo/redo logic internally
+  // Use the enhanced undo/redo hook
   const { saveToHistory } = useUndoRedo(
     shapes,
     setShapes,
@@ -71,30 +52,41 @@ export default function Canvas({
     onCanRedo
   );
 
+  // Use the drawing hook
+  const drawing = useCanvasDrawing(
+    selectedTool,
+    selectedColor,
+    strokeWidth,
+    strokeStyle,
+    backgroundColor,
+    opacity
+  );
+
+  // Use the selection hook
+  const selection = useCanvasSelection(shapes);
+
+  // Use the eraser hook
+  const eraser = useCanvasEraser(shapes, setShapes, saveToHistory);
+
+  // Use the panning hook
+  const panning = useCanvasPanning();
+
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
     console.log('Clearing entire canvas');
     console.log('Elements before clear:', shapes.length);
 
-    // Save current state to history before clearing
     if (shapes.length > 0) {
       saveToHistory(shapes);
-
-      // Clear all shapes
       setShapes([]);
 
-      // Clear all temporary states
-      setPenPoints([]);
-      setLaserPoints([]);
-      setEraserPath([]);
-      setSelectedElements([]);
-      setSelectionBox(null);
-      setMarkedIds([]);
-
-      // Clear any loaded images
+      // Clear all temporary states using hooks
+      drawing.resetDrawing();
+      selection.resetSelection();
+      eraser.resetEraser();
+      panning.resetPan();
       setLoadedImages(new Map());
 
-      // Hide text input if showing
       setTextInput({
         show: false,
         x: 0,
@@ -103,12 +95,10 @@ export default function Canvas({
         fontSize: 16
       });
 
-      // Clear image placement
       setImageToPlace(null);
-
       console.log('Canvas cleared successfully');
     }
-  }, [shapes, saveToHistory]);
+  }, [shapes, saveToHistory, drawing, selection, eraser, panning]);
 
   // Expose clear function to parent component
   useEffect(() => {
@@ -125,22 +115,16 @@ export default function Canvas({
     }
 
     try {
-      // Create a temporary canvas with white background
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
 
-      // Set same dimensions as original canvas
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
 
-      // Fill with white background
       tempCtx.fillStyle = '#ffffff';
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-      // Draw the original canvas content on top
       tempCtx.drawImage(canvas, 0, 0);
 
-      // Convert to blob and copy to clipboard
       return new Promise((resolve, reject) => {
         tempCanvas.toBlob(async (blob) => {
           if (!blob) {
@@ -149,9 +133,7 @@ export default function Canvas({
           }
 
           try {
-            // Check if clipboard API is available
             if (!navigator.clipboard || !navigator.clipboard.write) {
-              // Fallback: Download the image
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
@@ -164,7 +146,6 @@ export default function Canvas({
               return;
             }
 
-            // Copy to clipboard
             await navigator.clipboard.write([
               new ClipboardItem({
                 'image/png': blob
@@ -173,7 +154,6 @@ export default function Canvas({
             resolve();
           } catch (clipboardError) {
             console.error('Clipboard error:', clipboardError);
-            // Fallback: Download the image
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -203,16 +183,15 @@ export default function Canvas({
   // Function to check if a point is inside an element
   const isPointInElement = useCallback((point, shape) => {
     if (shape.tool === "pen" || shape.tool === "laser") {
-      // Check if point is near any part of the stroke
       const points = shape.points;
       for (let i = 0; i < points.length - 1; i++) {
         const p1 = points[i];
         const p2 = points[i + 1];
-        if (pointNearLine(point, p1, p2, 10)) return true; // 10px tolerance
+        if (pointNearLine(point, p1, p2, 10)) return true;
       }
       return false;
     } else if (shape.tool === "text") {
-      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6; // Approximate text width
+      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
       const textHeight = (shape.fontSize || 16) * 1.2;
       return point.x >= shape.x && point.x <= shape.x + textWidth &&
         point.y >= shape.y && point.y <= shape.y + textHeight;
@@ -220,46 +199,9 @@ export default function Canvas({
       return point.x >= shape.x && point.x <= shape.x + shape.width &&
         point.y >= shape.y && point.y <= shape.y + shape.height;
     } else {
-      // Shape tools
       return isPointInShape(shape, point);
     }
   }, []);
-
-  // Function to get elements within selection box
-  const getElementsInSelectionBox = useCallback((box) => {
-    const selectedIndices = [];
-
-    shapes.forEach((shape, index) => {
-      // Check if any part of the element is within the selection box
-      let isSelected = false;
-
-      if (shape.tool === "pen" || shape.tool === "laser") {
-        // Check if any point of the stroke is within selection box
-        isSelected = shape.points.some(point =>
-          point.x >= box.x && point.x <= box.x + box.width &&
-          point.y >= box.y && point.y <= box.y + box.height
-        );
-      } else if (shape.tool === "text") {
-        isSelected = shape.x >= box.x && shape.x <= box.x + box.width &&
-          shape.y >= box.y && shape.y <= box.y + box.height;
-      } else if (shape.tool === "image") {
-        isSelected = !(shape.x + shape.width < box.x || shape.x > box.x + box.width ||
-          shape.y + shape.height < box.y || shape.y > box.y + box.height);
-      } else {
-        // Shape tools - check if start or end point is within selection
-        isSelected = (shape.start.x >= box.x && shape.start.x <= box.x + box.width &&
-          shape.start.y >= box.y && shape.start.y <= box.y + box.height) ||
-          (shape.end.x >= box.x && shape.end.x <= box.x + box.width &&
-            shape.end.y >= box.y && shape.end.y <= box.y + box.height);
-      }
-
-      if (isSelected) {
-        selectedIndices.push(index);
-      }
-    });
-
-    return selectedIndices;
-  }, [shapes]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -274,24 +216,20 @@ export default function Canvas({
       canvas.height = window.innerHeight;
     }
     redraw();
-  }, [shapes, penPoints, laserPoints, eraserPath, markedIds, isDrawing, selectedTool, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panOffset, selectedElements, selectionBox, isSelecting]);
+  }, [shapes, drawing.penPoints, drawing.laserPoints, eraser.eraserPath, eraser.markedIds, drawing.isDrawing, selectedTool, drawing.startPoint, drawing.currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panning.panOffset, selection.selectedElements, selection.selectionBox, selection.isSelecting]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Escape key to clear selection
       if (e.key === 'Escape') {
-        setSelectedElements([]);
-        setSelectionBox(null);
+        selection.clearSelection();
       }
 
-      // Ctrl/Cmd + A to select all
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault();
-        setSelectedElements(shapes.map((_, index) => index));
+        selection.selectAll();
       }
 
-      // Ctrl/Cmd + V to paste image from clipboard
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         e.preventDefault();
         handlePasteFromClipboard();
@@ -300,7 +238,7 @@ export default function Canvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shapes.length]);
+  }, [shapes.length, selection]);
 
   // Handle paste from clipboard
   const handlePasteFromClipboard = async () => {
@@ -331,11 +269,10 @@ export default function Canvas({
                   height = height * ratio;
                 }
 
-                // Place image at center of canvas
                 const canvas = canvasRef.current;
                 if (canvas) {
-                  const centerX = (canvas.width / 2 - panOffset.x);
-                  const centerY = (canvas.height / 2 - panOffset.y);
+                  const centerX = (canvas.width / 2 - panning.panOffset.x);
+                  const centerY = (canvas.height / 2 - panning.panOffset.y);
 
                   saveToHistory(shapes);
 
@@ -363,7 +300,7 @@ export default function Canvas({
             };
 
             reader.readAsDataURL(blob);
-            return; // Exit after handling first image
+            return;
           }
         }
       }
@@ -423,11 +360,10 @@ export default function Canvas({
     }
   }, [selectedTool]);
 
+  // Updated to use panning hook's getRelativeCoords
   function getRelativeCoords(e) {
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left - panOffset.x;
-    const y = e.clientY - rect.top - panOffset.y;
-    return { x, y };
+    return panning.getRelativeCoords(e, rect);
   }
 
   function interpolatePoints(p1, p2, spacing = 2) {
@@ -481,17 +417,15 @@ export default function Canvas({
   const handleMouseDown = (e) => {
     const point = getRelativeCoords(e);
 
-    // Handle panning with hand tool
+    // Handle panning with hand tool using the panning hook
     if (selectedTool === "hand") {
-      setIsPanning(true);
-      setLastPanPoint({ x: e.clientX, y: e.clientY });
+      panning.startPanning(e);
       return;
     }
 
     // Handle image placement
     if (selectedTool === "image") {
       if (imageToPlace) {
-        // Place the image at click location
         saveToHistory(shapes);
 
         const imageId = `img_${Date.now()}_${Math.random()}`;
@@ -524,9 +458,8 @@ export default function Canvas({
       }
     }
 
-    // Handle selection tool
+    // Handle selection tool using the selection hook
     if (selectedTool === "select") {
-      // Check if clicking on an existing element (check from top to bottom)
       let clickedElementIndex = -1;
       for (let i = shapes.length - 1; i >= 0; i--) {
         if (isPointInElement(point, shapes[i])) {
@@ -536,25 +469,15 @@ export default function Canvas({
       }
 
       if (clickedElementIndex !== -1) {
-        // If clicking on an already selected element, keep selection
-        if (selectedElements.includes(clickedElementIndex)) {
+        if (selection.isElementSelected(clickedElementIndex)) {
           return;
         }
-        // If clicking on a new element, select it
-        if (e.ctrlKey || e.metaKey) {
-          // Add to selection with Ctrl/Cmd key
-          setSelectedElements(prev => [...prev, clickedElementIndex]);
-        } else {
-          setSelectedElements([clickedElementIndex]);
-        }
+        selection.selectElement(clickedElementIndex, e.ctrlKey || e.metaKey);
       } else {
-        // Start selection box
         if (!e.ctrlKey && !e.metaKey) {
-          setSelectedElements([]);
+          selection.clearSelection();
         }
-        setIsSelecting(true);
-        setStartPoint(point);
-        setSelectionBox({ x: point.x, y: point.y, width: 0, height: 0 });
+        selection.startSelection(point);
       }
       return;
     }
@@ -578,146 +501,59 @@ export default function Canvas({
       return;
     }
 
-    // Clear selection when starting to draw (unless using select tool or image tool)
+    // Clear selection when starting to draw
     if (selectedTool !== "select" && selectedTool !== "image") {
-      setSelectedElements([]);
-      setSelectionBox(null);
+      selection.clearSelection();
     }
 
-    if (selectedTool === "pen") {
+    // Handle drawing tools using the hook
+    if (drawing.isDrawingTool()) {
       saveToHistory(shapes);
-      setPenPoints([point]);
-      setIsDrawing(true);
+      drawing.startDrawing(point);
     } else if (selectedTool === "eraser") {
-      setEraserPath([point]);
-      setMarkedIds([]);
-      setIsDrawing(true);
-    } else if (selectedTool === "laser") {
-      setLaserPoints([point]);
-      setIsDrawing(true);
-    } else if (SHAPE_TOOLS.includes(selectedTool)) {
-      saveToHistory(shapes);
-      setIsDrawing(true);
-      setStartPoint(point);
-      setCurrentPoint(point);
+      eraser.startErasing(point);
     }
   };
 
   const handleMouseMove = (e) => {
-    // Handle panning
-    if (isPanning && selectedTool === "hand") {
-      const deltaX = e.clientX - lastPanPoint.x;
-      const deltaY = e.clientY - lastPanPoint.y;
-
-      setPanOffset({
-        x: panOffset.x + deltaX,
-        y: panOffset.y + deltaY
-      });
-
-      setLastPanPoint({ x: e.clientX, y: e.clientY });
+    // Handle panning using the panning hook
+    if (panning.isPanning && selectedTool === "hand") {
+      panning.updatePanning(e);
       return;
     }
 
-    // Handle selection box
-    if (isSelecting && selectedTool === "select" && startPoint) {
-      const point = getRelativeCoords(e);
-      const newSelectionBox = {
-        x: Math.min(startPoint.x, point.x),
-        y: Math.min(startPoint.y, point.y),
-        width: Math.abs(point.x - startPoint.x),
-        height: Math.abs(point.y - startPoint.y)
-      };
-      setSelectionBox(newSelectionBox);
-      return;
-    }
-
-    if (!isDrawing) return;
     const point = getRelativeCoords(e);
 
-    if (selectedTool === "pen") {
-      setPenPoints(ps => [...ps, point]);
-    } else if (selectedTool === "laser") {
-      setLaserPoints(ls => [...ls, point]);
-    } else if (selectedTool === "eraser") {
-      setEraserPath(p => {
-        if (p.length === 0) return [point];
-        const lastPoint = p[p.length - 1];
-        const newPoints = interpolatePoints(lastPoint, point);
-        return [...p, ...newPoints, point];
-      });
-      const eraserPointsForCheck = [...eraserPath, point];
-      setMarkedIds(
-        shapes
-          .map((shape, idx) => ({ shape, idx }))
-          .filter(({ shape }) => shapeIntersectsEraser(shape, eraserPointsForCheck))
-          .map(({ idx }) => idx)
-      );
-    } else if (SHAPE_TOOLS.includes(selectedTool)) {
-      setCurrentPoint(point);
+    // Handle selection box using the selection hook
+    if (selection.isSelecting && selectedTool === "select") {
+      selection.updateSelection(point, selection.selectionBox);
+      return;
+    }
+
+    // Handle drawing using the hook
+    if (drawing.isDrawingTool()) {
+      drawing.updateDrawing(point);
+    } else if (selectedTool === "eraser" && eraser.isErasing) {
+      eraser.updateErasing(point, interpolatePoints, shapeIntersectsEraser);
     }
   };
 
   const handleMouseUp = () => {
-    setIsPanning(false);
-    setIsDrawing(false);
+    // Stop panning using the panning hook
+    panning.stopPanning();
 
-    // Handle selection box completion
-    if (isSelecting && selectedTool === "select" && selectionBox) {
-      const elementsInBox = getElementsInSelectionBox(selectionBox);
-      if (elementsInBox.length > 0) {
-        setSelectedElements(prev => {
-          const newSelection = [...new Set([...prev, ...elementsInBox])];
-          return newSelection;
-        });
-      }
-      setIsSelecting(false);
-      setSelectionBox(null);
-      setStartPoint(null);
+    // Handle selection completion using the selection hook
+    if (selection.isSelecting && selectedTool === "select") {
+      selection.finishSelection();
       return;
     }
 
-    if (selectedTool === "pen" && penPoints.length > 0) {
-      setShapes(prev => [...prev, {
-        tool: "pen",
-        points: penPoints,
-        color: selectedColor,
-        strokeWidth,
-        strokeStyle,
-        opacity: opacity / 100
-      }]);
-      setPenPoints([]);
-    } else if (selectedTool === "laser" && laserPoints.length > 1) {
-      setShapes(prev => [...prev, {
-        tool: "laser",
-        points: laserPoints,
-        opacity: opacity / 100,
-        expiration: Date.now() + 2000,
-        color: selectedColor,
-        strokeWidth,
-        strokeStyle
-      }]);
-      setLaserPoints([]);
-    } else if (selectedTool === "eraser" && eraserPath.length > 0) {
-      if (markedIds.length > 0) {
-        saveToHistory(shapes);
-        setShapes(shapes.filter((_, i) => !markedIds.includes(i)));
-      }
-      setMarkedIds([]);
-      setEraserPath([]);
-    } else if (SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      setShapes(prev => [...prev, {
-        tool: selectedTool,
-        start: startPoint,
-        end: currentPoint,
-        color: selectedColor,
-        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
-        strokeWidth,
-        strokeStyle,
-        opacity: opacity / 100
-      }]);
+    // Handle drawing completion using the hook
+    if (drawing.isDrawingTool()) {
+      drawing.finishDrawing(setShapes);
+    } else if (selectedTool === "eraser" && eraser.isErasing) {
+      eraser.finishErasing();
     }
-    setStartPoint(null);
-    setCurrentPoint(null);
   };
 
   // Simple text submission
@@ -790,13 +626,13 @@ export default function Canvas({
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply pan transformation
+    // Apply pan transformation using hook state
     ctx.save();
-    ctx.translate(panOffset.x, panOffset.y);
+    ctx.translate(panning.panOffset.x, panning.panOffset.y);
 
     shapes.forEach((shape, idx) => {
-      const fade = markedIds.includes(idx);
-      const isSelected = selectedElements.includes(idx);
+      const fade = eraser.markedIds.includes(idx);
+      const isSelected = selection.isElementSelected(idx);
 
       if (shape.tool === "pen") {
         drawPenStroke(ctx, shape.points, false, fade, shape, isSelected);
@@ -811,14 +647,15 @@ export default function Canvas({
       }
     });
 
-    if (isDrawing && selectedTool === "pen" && penPoints.length) {
-      drawPenStroke(ctx, penPoints, true, false, { color: selectedColor, strokeWidth, strokeStyle, opacity: opacity / 100 });
+    // Draw current drawing using hook states
+    if (drawing.isDrawing && selectedTool === "pen" && drawing.penPoints.length) {
+      drawPenStroke(ctx, drawing.penPoints, true, false, { color: selectedColor, strokeWidth, strokeStyle, opacity: opacity / 100 });
     }
-    if (isDrawing && selectedTool === "laser" && laserPoints.length) {
-      drawLaserStroke(ctx, laserPoints, opacity / 100, { color: selectedColor, strokeWidth, strokeStyle });
+    if (drawing.isDrawing && selectedTool === "laser" && drawing.laserPoints.length) {
+      drawLaserStroke(ctx, drawing.laserPoints, opacity / 100, { color: selectedColor, strokeWidth, strokeStyle });
     }
-    if (isDrawing && SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      drawShape(ctx, startPoint, currentPoint, selectedTool, true, false, {
+    if (drawing.isDrawing && SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
+      drawShape(ctx, drawing.startPoint, drawing.currentPoint, selectedTool, true, false, {
         color: selectedColor,
         backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
         strokeWidth,
@@ -826,19 +663,21 @@ export default function Canvas({
         opacity: opacity / 100
       });
     }
-    if (selectedTool === "eraser" && eraserPath.length > 0) {
-      drawEraserPath(ctx, eraserPath);
+
+    // Draw eraser path using hook state
+    if (selectedTool === "eraser" && eraser.eraserPath.length > 0) {
+      drawEraserPath(ctx, eraser.eraserPath);
     }
 
-    // Draw selection box
-    if (selectionBox && isSelecting) {
-      drawSelectionBox(ctx, selectionBox);
+    // Draw selection box using hook state
+    if (selection.selectionBox && selection.isSelecting) {
+      drawSelectionBox(ctx, selection.selectionBox);
     }
 
     ctx.restore();
   }
 
-  // Draw selection box
+  // All your drawing functions remain the same...
   function drawSelectionBox(ctx, box) {
     ctx.save();
     ctx.strokeStyle = '#3b82f6';
@@ -850,7 +689,6 @@ export default function Canvas({
     ctx.restore();
   }
 
-  // Draw selection highlight around elements
   function drawSelectionHighlight(ctx, shape, isSelected) {
     if (!isSelected) return;
 
@@ -911,8 +749,6 @@ export default function Canvas({
     }
 
     ctx.restore();
-
-    // Draw selection highlight
     drawSelectionHighlight(ctx, shape, isSelected);
   }
 
@@ -931,8 +767,6 @@ export default function Canvas({
     });
 
     ctx.restore();
-
-    // Draw selection highlight
     drawSelectionHighlight(ctx, shape, isSelected);
   }
 
@@ -957,7 +791,6 @@ export default function Canvas({
     ctx.stroke();
     ctx.restore();
 
-    // Draw selection highlight
     if (isSelected && points.length > 0) {
       ctx.save();
       ctx.strokeStyle = '#3b82f6';
@@ -998,7 +831,6 @@ export default function Canvas({
     ctx.stroke();
     ctx.restore();
 
-    // Draw selection highlight
     if (isSelected && points.length > 0) {
       ctx.save();
       ctx.strokeStyle = '#3b82f6';
@@ -1074,7 +906,6 @@ export default function Canvas({
     ctx.stroke();
     ctx.restore();
 
-    // Draw selection highlight
     drawSelectionHighlight(ctx, shape, isSelected);
   }
 
@@ -1210,7 +1041,6 @@ export default function Canvas({
         }}
       />
 
-      {/* Hidden file input for image selection */}
       <input
         ref={fileInputRef}
         type="file"
@@ -1265,8 +1095,8 @@ export default function Canvas({
           className="whiteboard-text-input"
           style={{
             position: 'absolute',
-            left: textInput.x + panOffset.x,
-            top: textInput.y + panOffset.y - 10,
+            left: textInput.x + panning.panOffset.x,
+            top: textInput.y + panning.panOffset.y - 10,
             zIndex: 1000,
             width: '300px',
             minWidth: '200px',
@@ -1294,8 +1124,7 @@ export default function Canvas({
         />
       )}
 
-      {/* Selection info display */}
-      {selectedElements.length > 0 && (
+      {selection.selectedElements.length > 0 && (
         <div
           style={{
             position: 'absolute',
@@ -1310,7 +1139,7 @@ export default function Canvas({
             pointerEvents: 'none'
           }}
         >
-          {selectedElements.length} element(s) selected
+          {selection.selectedElements.length} element(s) selected
         </div>
       )}
     </>
