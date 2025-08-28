@@ -43,9 +43,6 @@ export default function Canvas({
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
-  // Use the custom undo/redo hook
-  const { saveToHistory, undo, redo, clearHistory, canUndo, canRedo } = useUndoRedo();
-
   // Simple text state
   const [textInput, setTextInput] = useState({
     show: false,
@@ -57,6 +54,22 @@ export default function Canvas({
 
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
+
+  // Clear selection helper function for undo/redo hook
+  const clearSelection = useCallback(() => {
+    setSelectedElements([]);
+    setSelectionBox(null);
+  }, []);
+
+  // Use the enhanced undo/redo hook - it handles all undo/redo logic internally
+  const { saveToHistory } = useUndoRedo(
+    shapes,
+    setShapes,
+    onUndoFunction,
+    onRedoFunction,
+    onCanUndo,
+    onCanRedo
+  );
 
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
@@ -247,34 +260,6 @@ export default function Canvas({
 
     return selectedIndices;
   }, [shapes]);
-
-  // Undo function using the hook
-  const handleUndo = useCallback(() => {
-    undo(shapes, setShapes);
-    // Clear selection when undoing
-    setSelectedElements([]);
-    setSelectionBox(null);
-  }, [undo, shapes]);
-
-  // Redo function using the hook
-  const handleRedo = useCallback(() => {
-    redo(shapes, setShapes);
-    // Clear selection when redoing
-    setSelectedElements([]);
-    setSelectionBox(null);
-  }, [redo, shapes]);
-
-  // Expose undo/redo functions to parent component
-  useEffect(() => {
-    if (onUndoFunction) onUndoFunction(handleUndo);
-    if (onRedoFunction) onRedoFunction(handleRedo);
-  }, [handleUndo, handleRedo, onUndoFunction, onRedoFunction]);
-
-  // Provide undo/redo availability to parent
-  useEffect(() => {
-    if (onCanUndo) onCanUndo(canUndo);
-    if (onCanRedo) onCanRedo(canRedo);
-  }, [canUndo, canRedo, onCanUndo, onCanRedo]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
