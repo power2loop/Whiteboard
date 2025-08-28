@@ -3,8 +3,6 @@ import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
 const ERASER_RADIUS = 2;
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 5;
 
 export default function Canvas({
   selectedTool,
@@ -16,7 +14,6 @@ export default function Canvas({
   onToolChange,
   // New props for zoom and undo/redo
   zoom = 1,
-  onZoomChange,
   onUndoFunction,
   onRedoFunction,
   onCanUndo,
@@ -62,9 +59,6 @@ export default function Canvas({
 
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
-
-  // Drag and drop state
-  const [isDragOver, setIsDragOver] = useState(false);
 
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
@@ -505,76 +499,6 @@ export default function Canvas({
       canvas.style.cursor = "crosshair";
     }
   }, [selectedTool]);
-
-  // Drag and drop event handlers
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Only set isDragOver to false if we're actually leaving the canvas
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setIsDragOver(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    const files = Array.from(e.dataTransfer.files);
-    const imageFile = files.find(file => file.type.startsWith('image/'));
-
-    if (imageFile) {
-      // Get drop position
-      const dropPoint = getRelativeCoords(e);
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const maxSize = 300;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = width * ratio;
-            height = height * ratio;
-          }
-
-          // Directly place the image at drop position
-          saveToHistory();
-
-          const imageId = `img_${Date.now()}_${Math.random()}`;
-
-          const newImg = new Image();
-          newImg.onload = () => {
-            setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
-          };
-          newImg.src = event.target.result;
-
-          setShapes(prev => [...prev, {
-            tool: "image",
-            id: imageId,
-            x: dropPoint.x - width / 2, // Center the image on drop point
-            y: dropPoint.y - height / 2,
-            width,
-            height,
-            src: event.target.result,
-            opacity: opacity / 100
-          }]);
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(imageFile);
-    }
-  };
 
   function getRelativeCoords(e) {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -1362,14 +1286,11 @@ export default function Canvas({
         onMouseMove={handleCursorMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         tabIndex={0}
         aria-label="whiteboard-canvas"
         style={{
           cursor: imageToPlace ? 'crosshair' : 'default',
-          backgroundColor: isDragOver ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
+          backgroundColor: "" ? 'rgba(59, 130, 246, 0.05)' : 'transparent'
         }}
       />
 
@@ -1381,74 +1302,6 @@ export default function Canvas({
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
-
-      {/* Enhanced drag over visual feedback */}
-      {isDragOver && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '400px',
-            height: '300px',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            border: '3px dashed #3b82f6',
-            borderRadius: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            color: '#3b82f6',
-            fontWeight: 'bold',
-            pointerEvents: 'none',
-            zIndex: 999,
-            textAlign: 'center',
-            gap: '16px'
-          }}
-        >
-          <div style={{ fontSize: '48px' }}>📁</div>
-          <div>Drop image here</div>
-          <div style={{ fontSize: '14px', fontWeight: 'normal', color: '#6b7280' }}>
-            Or press Ctrl+V to paste from clipboard
-          </div>
-        </div>
-      )}
-
-      {/* Show message when image tool is selected but no image is ready to place */}
-      {selectedTool === "image" && !imageToPlace && !isDragOver && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '400px',
-            height: '200px',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            border: '2px dashed #3b82f6',
-            borderRadius: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '18px',
-            color: '#3b82f6',
-            fontWeight: 'bold',
-            pointerEvents: 'none',
-            zIndex: 998,
-            textAlign: 'center',
-            gap: '16px'
-          }}
-        >
-          <div style={{ fontSize: '48px' }}>🖼️</div>
-          <div>Click anywhere to select and place image</div>
-          <div style={{ fontSize: '14px', fontWeight: 'normal', color: '#6b7280' }}>
-            Or drag & drop an image, or press Ctrl+V to paste
-          </div>
-        </div>
-      )}
 
       {selectedTool === "eraser" && (
         <div
