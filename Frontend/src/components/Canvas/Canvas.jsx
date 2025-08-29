@@ -6,6 +6,7 @@ import useCanvasEraser from './hooks/useCanvasEraser';
 import useCanvasPanning from './hooks/useCanvasPanning';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
 import useCanvasEvents from './hooks/useCanvasEvents';
+import useCursor from './hooks/useCursor';
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
@@ -67,6 +68,9 @@ export default function Canvas({
   const eraser = useCanvasEraser(shapes, setShapes, saveToHistory);
   const panning = useCanvasPanning();
   const renderer = useCanvasRenderer();
+
+  // Add cursor hook
+  const cursor = useCursor(selectedTool, panning.panOffset, imageToPlace, ERASER_RADIUS);
 
   // Function to check if a point is inside an element
   const isPointInElement = useCallback((point, shape) => {
@@ -174,7 +178,7 @@ export default function Canvas({
     }
   };
 
-  // Use events hook
+  // Use events hook with cursor utilities
   const events = useCanvasEvents(
     canvasRef,
     selectedTool,
@@ -195,7 +199,8 @@ export default function Canvas({
     opacity,
     fileInputRef,
     handlePasteFromClipboard,
-    setLoadedImages
+    setLoadedImages,
+    cursor // Pass cursor utilities to events hook
   );
 
   // Clear all canvas content function
@@ -500,19 +505,33 @@ export default function Canvas({
     }
   }
 
+  // Get cursor render data
+  const eraserCursor = cursor.renderEraserCursor();
+  const imageCursor = cursor.renderImagePlacementCursor();
+
   return (
     <>
       <canvas
-        ref={canvasRef}
+        ref={(el) => {
+          canvasRef.current = el;
+          cursor.cursorRef.current = el;
+        }}
         className="drawing-canvas"
         onMouseDown={events.handleMouseDown}
-        onMouseMove={events.handleCursorMove}
+        onMouseMove={(e) => {
+          cursor.updateMousePosition(e);
+          events.handleCursorMove(e);
+        }}
         onMouseUp={events.handleMouseUp}
-        onMouseLeave={events.handleMouseUp}
+        onMouseEnter={cursor.handleMouseEnter}
+        onMouseLeave={(e) => {
+          cursor.handleMouseLeave();
+          events.handleMouseUp(e);
+        }}
         tabIndex={0}
         aria-label="whiteboard-canvas"
         style={{
-          cursor: imageToPlace ? 'crosshair' : 'default',
+          cursor: cursor.getCursorStyle(),
           backgroundColor: 'transparent'
         }}
       />
@@ -525,39 +544,18 @@ export default function Canvas({
         style={{ display: 'none' }}
       />
 
-      {selectedTool === "eraser" && (
+      {/* Render only eraser and image cursors - crosshair cursor removed */}
+      {eraserCursor && (
         <div
           className="eraser-cursor-pulse"
-          style={{
-            left: events.mousePos.x,
-            top: events.mousePos.y,
-            width: ERASER_RADIUS * 2,
-            height: ERASER_RADIUS * 2,
-            position: 'absolute',
-            border: '1px solid rgba(160,160,160,0.5)',
-            borderRadius: '50%',
-            pointerEvents: 'none',
-            zIndex: 1000,
-            transform: 'translate(-50%, -50%)'
-          }}
+          style={eraserCursor.style}
         />
       )}
 
-      {imageToPlace && (
+      {imageCursor && (
         <div
           className="image-placement-cursor"
-          style={{
-            position: 'absolute',
-            left: events.mousePos.x,
-            top: events.mousePos.y,
-            width: imageToPlace.width,
-            height: imageToPlace.height,
-            border: '2px dashed #3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            pointerEvents: 'none',
-            zIndex: 1000,
-            transform: 'translate(-50%, -50%)'
-          }}
+          style={imageCursor.style}
         />
       )}
 
