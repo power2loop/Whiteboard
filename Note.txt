@@ -83,72 +83,80 @@ Looking at your Canvas component, here are the additional hooks you can create t
 
 ## **Additional Hooks to Extract**
 
-### 1. **`useCanvasRenderer`**
+### 1. useCanvasDrawing 
+
+Manage drawing operations and state:
+-Drawing lifecycle control (startDrawing, updateDrawing, finishDrawing)
+-Tool-specific drawing logic (pen, laser, shapes)
+-Drawing state management (isDrawing, point collections)
+-Shape creation with styling properties
+-Drawing tool validation and state reset
+
+### 2. useCanvasEraser
+
+Manage eraser functionality:
+-Eraser path tracking and intersection detection
+-Shape marking for deletion (markedIds array)
+-Erasing lifecycle control (startErasing, updateErasing, finishErasing)
+-History saving before shape removal
+-Eraser state management and radius configuration
+
+### 3. useCanvasEvents
+
+Handle all canvas interactions and events:
+-Mouse event handlers (handleMouseDown, handleMouseMove, handleMouseUp)
+-Keyboard shortcuts and clipboard operations
+-Tool-specific event logic (drawing, erasing, selection, panning, text, image placement)
+-Cursor management with custom SVG cursors
+-Coordinate transformation and geometry helpers
+-Mouse position tracking for UI interactions
+
+### 4. useCanvasPanning
+
+Manage canvas pan/zoom navigation:
+-Pan state management (panOffset, isPanning, lastPanPoint)
+-Panning lifecycle control (startPanning, updatePanning, stopPanning)
+-Pan position utilities (resetPan, setPan)
+-Coordinate transformation (getRelativeCoords) for mouse events
+-Delta calculation for smooth pan movement
+
+### 5. useCanvasRenderer
+
 Extract all drawing/rendering logic:
-- `redraw()` function
-- All drawing functions (`drawPenStroke`, `drawShape`, `drawText`, `drawImage`, etc.)
-- Canvas context management
-- Stroke style application
 
-### 2. **`useCanvasEvents`**
-Handle all mouse/keyboard events:
-- `handleMouseDown`, `handleMouseMove`, `handleMouseUp`
-- `handleKeyDown` for shortcuts
-- Event delegation and cleanup
-- Cursor management
+-redraw() main rendering function with pan transformation
+-Shape-specific drawing functions (drawPenStroke, drawLaserStroke, drawShape, drawText, drawImage)
+-Canvas context management and stroke style application (applyStrokeStyle)
+-Selection visualization (drawSelectionBox, drawSelectionHighlight)
+-Live preview rendering for active drawing operations
+-Eraser path visualization and geometric shape utilities
 
-### 3. **`useCanvasState`**
-Manage complex state logic:
-- `shapes` state and updates
-- `textInput` state management
-- `imageToPlace` state
-- State persistence and batching
+### 6. useCanvasSelection
 
-### 4. **`useImageManager`**
-Handle image-related operations:
-- `loadedImages` Map management
-- Image loading and caching
-- File upload handling
-- Image placement logic
+Manage element selection functionality:
+-Selection state management (selectedElements, selectionBox, isSelecting)
+-Element selection operations (selectElement, clearSelection, selectAll)
+-Selection box drawing (startSelection, updateSelection, finishSelection)
+-Geometric selection detection for different shape types
+-Multi-select support and selection validation utilities
 
-### 5. **`useCanvasText`**
-Extract text functionality:
-- Text input rendering and positioning
-- Text submission logic
-- Font and sizing calculations
-- Text area management
+### 7.  useCursor
 
-### 6. **useCanvasClipboard`**
-Handle clipboard operations:
-- Copy canvas functionality
-- Paste image handling
-- Clipboard API management
+Manage cursor behavior and custom cursor rendering:
 
-### 7. **`useCanvasResize`**
-Manage canvas dimensions:
-- Canvas sizing logic
-- Responsive behavior
-- Resize event handling
+-Mouse position tracking (updateMousePosition, getAdjustedCursorPos with pan offset)
+-Canvas interaction state (isMouseInCanvas, mouse enter/leave handlers)
+-Tool-specific cursor logic (getCursorStyle for different tools)
+-Custom cursor rendering functions (eraser circle, image placement preview, crosshair)
+-Cursor visibility control (hideCursor, showCursor) and dynamic cursor updates
 
-### 8. **`useCanvasPerformance`**
-Optimize rendering performance:
-- RAF (RequestAnimationFrame) management
-- Debounced updates
-- Dirty region tracking
-- Render batching
 
-### 9. **`useCanvasGeometry`**
-Extract geometric calculations:
-- Point-in-shape detection
-- Distance calculations
-- Shape intersection logic
-- Coordinate transformations
 
-### 10. **`useCanvasCursor`**
-Manage cursor behavior:
-- Custom cursor logic
-- Mouse position tracking
-- Tool-specific cursors
-- Cursor state management
+### 8. useUndoRedo
 
-Would you like me to create any of these specific hooks? Which ones would you like to start with?
+Manage canvas history and undo/redo operations:
+-History state management (undoHistory, redoHistory arrays)
+-State persistence (saveToHistory with deep cloning)
+-Undo/redo operations with selection clearing callbacks
+-History validation (canUndo, canRedo availability checks)
+-Parent component integration via callback exposure
