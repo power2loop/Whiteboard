@@ -76,3 +76,79 @@ Frontend
 │── README.md
 │── vite.config.js
 │── Note.txt
+
+
+
+Looking at your Canvas component, here are the additional hooks you can create to further reduce the load:
+
+## **Additional Hooks to Extract**
+
+### 1. **`useCanvasRenderer`**
+Extract all drawing/rendering logic:
+- `redraw()` function
+- All drawing functions (`drawPenStroke`, `drawShape`, `drawText`, `drawImage`, etc.)
+- Canvas context management
+- Stroke style application
+
+### 2. **`useCanvasEvents`**
+Handle all mouse/keyboard events:
+- `handleMouseDown`, `handleMouseMove`, `handleMouseUp`
+- `handleKeyDown` for shortcuts
+- Event delegation and cleanup
+- Cursor management
+
+### 3. **`useCanvasState`**
+Manage complex state logic:
+- `shapes` state and updates
+- `textInput` state management
+- `imageToPlace` state
+- State persistence and batching
+
+### 4. **`useImageManager`**
+Handle image-related operations:
+- `loadedImages` Map management
+- Image loading and caching
+- File upload handling
+- Image placement logic
+
+### 5. **`useCanvasText`**
+Extract text functionality:
+- Text input rendering and positioning
+- Text submission logic
+- Font and sizing calculations
+- Text area management
+
+### 6. **useCanvasClipboard`**
+Handle clipboard operations:
+- Copy canvas functionality
+- Paste image handling
+- Clipboard API management
+
+### 7. **`useCanvasResize`**
+Manage canvas dimensions:
+- Canvas sizing logic
+- Responsive behavior
+- Resize event handling
+
+### 8. **`useCanvasPerformance`**
+Optimize rendering performance:
+- RAF (RequestAnimationFrame) management
+- Debounced updates
+- Dirty region tracking
+- Render batching
+
+### 9. **`useCanvasGeometry`**
+Extract geometric calculations:
+- Point-in-shape detection
+- Distance calculations
+- Shape intersection logic
+- Coordinate transformations
+
+### 10. **`useCanvasCursor`**
+Manage cursor behavior:
+- Custom cursor logic
+- Mouse position tracking
+- Tool-specific cursors
+- Cursor state management
+
+Would you like me to create any of these specific hooks? Which ones would you like to start with?
