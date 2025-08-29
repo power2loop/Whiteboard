@@ -213,7 +213,7 @@ const BottomControls = ({
               className="color-preview-circle"
               style={{ backgroundColor: getBgColorHex() }}
             />
-            <span className="color-hex-display">BG #{getBgDisplayHex()}</span>
+            <span className="color-hex-display">#{getBgDisplayHex()}</span>
           </button>
 
           {showBgColorPicker && bgColor && (

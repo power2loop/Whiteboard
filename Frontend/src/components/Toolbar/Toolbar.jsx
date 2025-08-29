@@ -8,7 +8,7 @@ import { GoCopy } from "react-icons/go";
 import { AiOutlineDelete } from "react-icons/ai";
 import { IoIosLink } from "react-icons/io";
 
-const strokeColors = ['#191919', '#EF4444', '#22C55E', '#3B82F6', '#F59E42', '#00fffbff'];
+const strokeColors = ['#ffffff','#191919', '#EF4444', '#22C55E', '#3B82F6', '#F59E42', '#00fffbff'];
 const backgroundColors = ['#ffffff', '#F8A5B3', '#BBF7D0', '#93E7FF', '#FDE68A', '#22C55E'];
 
 const Toolbar = ({
