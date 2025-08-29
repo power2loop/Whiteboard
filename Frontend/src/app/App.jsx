@@ -8,7 +8,7 @@ import "./App.css";
 import { useState, useRef } from 'react';
 
 function App() {
-  const [selectedTool, setSelectedTool] = useState("select");
+  const [selectedTool, setSelectedTool] = useState("hand");
   const [selectedColor, setSelectedColor] = useState("#000000");
   const [showToolbar, setShowToolbar] = useState(false);
 
@@ -31,8 +31,9 @@ function App() {
   const canvasCopyRef = useRef(null);
   const canvasClearRef = useRef(null);
 
-  const handleToolSelect = (tool) => {
+ const handleToolSelect = (tool) => {
     setSelectedTool(tool);
+    // Update the condition to include "hand"
     if (["hand", "select", "image", "eraser"].includes(tool)) {
       setShowToolbar(false);
     } else {

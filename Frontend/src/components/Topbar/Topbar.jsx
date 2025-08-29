@@ -1,3 +1,4 @@
+// topbar.jsx - Updated version
 import React, { useState } from "react";
 import { MdArrowRightAlt, MdOutlineCircle } from "react-icons/md";
 import { FaMinus } from "react-icons/fa";
@@ -11,9 +12,9 @@ import { LuDiamond } from "react-icons/lu";
 import { ImMagicWand } from "react-icons/im";
 import "./Topbar.css";
 
-
 export default function Topbar({ onToolSelect, selectedColor, onColorSelect }) {
-  const [activeTool, setActiveTool] = useState("select");
+  // Change initial state to "hand" instead of "select"
+  const [activeTool, setActiveTool] = useState("hand");
 
   const handleSelect = (tool) => {
     setActiveTool(tool);
@@ -26,6 +27,7 @@ export default function Topbar({ onToolSelect, selectedColor, onColorSelect }) {
         <button
           className={activeTool === "hand" ? "active" : ""}
           onClick={() => handleSelect("hand")}
+          title="Select and move objects"
         >
           <FaRegHandPaper />
         </button>

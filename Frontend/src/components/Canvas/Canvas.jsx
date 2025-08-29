@@ -179,30 +179,31 @@ export default function Canvas({
     }
   };
 
-  // Use events hook with cursor utilities
-  const events = useCanvasEvents(
-    canvasRef,
-    selectedTool,
-    shapes,
-    drawing,
-    selection,
-    eraser,
-    panning,
-    onToolChange,
-    isPointInElement,
-    saveToHistory,
-    setShapes,
-    setTextInput,
-    setImageToPlace,
-    imageToPlace,
-    selectedColor,
-    strokeWidth,
-    opacity,
-    fileInputRef,
-    handlePasteFromClipboard,
-    setLoadedImages,
-    cursor
-  );
+// Canvas.jsx - Add this check in your mouse event handlers
+const events = useCanvasEvents(
+  canvasRef,
+  selectedTool,
+  shapes,
+  drawing,
+  selection,
+  eraser,
+  panning,
+  onToolChange,
+  isPointInElement,
+  saveToHistory,
+  setShapes,
+  setTextInput,
+  setImageToPlace,
+  imageToPlace,
+  selectedColor,
+  strokeWidth,
+  opacity,
+  fileInputRef,
+  handlePasteFromClipboard,
+  setLoadedImages,
+  cursor
+);
+
 
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
@@ -598,25 +599,6 @@ export default function Canvas({
           autoComplete="off"
           rows={3}
         />
-      )}
-
-      {selection.selectedElements.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 20,
-            left: 20,
-            background: 'rgba(59, 130, 246, 0.9)',
-            color: 'white',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            zIndex: 1001,
-            pointerEvents: 'none'
-          }}
-        >
-          {selection.selectedElements.length} element(s) selected
-        </div>
       )}
     </>
   );

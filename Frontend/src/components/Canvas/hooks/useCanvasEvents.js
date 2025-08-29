@@ -20,7 +20,7 @@ const useCanvasEvents = (
     opacity,
     fileInputRef,
     handlePasteFromClipboard,
-    setLoadedImages // Add this missing parameter
+    setLoadedImages
 ) => {
     const [mousePos, setMousePos] = useState({ x: -100, y: -100 });
 
@@ -92,9 +92,30 @@ const useCanvasEvents = (
     const handleMouseDown = useCallback((e) => {
         const point = getRelativeCoords(e);
 
-        // Handle panning with hand tool
+        // Handle selection with hand tool
         if (selectedTool === "hand") {
-            panning.startPanning(e);
+            let clickedElementIndex = -1;
+            
+            // Find clicked element (search from top to bottom)
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                if (isPointInElement(point, shapes[i])) {
+                    clickedElementIndex = i;
+                    break;
+                }
+            }
+
+            if (clickedElementIndex !== -1) {
+                // Select the clicked element
+                if (!selection.isElementSelected(clickedElementIndex)) {
+                    selection.selectElement(clickedElementIndex, e.ctrlKey || e.metaKey);
+                }
+            } else {
+                // Start selection box if no element was clicked
+                if (!e.ctrlKey && !e.metaKey) {
+                    selection.clearSelection();
+                }
+                selection.startSelection(point);
+            }
             return;
         }
 
@@ -123,37 +144,13 @@ const useCanvasEvents = (
 
                 setImageToPlace(null);
                 if (onToolChange) {
-                    onToolChange("select");
+                    onToolChange("hand"); // Change to hand instead of select
                 }
                 return;
             } else {
                 fileInputRef.current?.click();
                 return;
             }
-        }
-
-        // Handle selection tool
-        if (selectedTool === "select") {
-            let clickedElementIndex = -1;
-            for (let i = shapes.length - 1; i >= 0; i--) {
-                if (isPointInElement(point, shapes[i])) {
-                    clickedElementIndex = i;
-                    break;
-                }
-            }
-
-            if (clickedElementIndex !== -1) {
-                if (selection.isElementSelected(clickedElementIndex)) {
-                    return;
-                }
-                selection.selectElement(clickedElementIndex, e.ctrlKey || e.metaKey);
-            } else {
-                if (!e.ctrlKey && !e.metaKey) {
-                    selection.clearSelection();
-                }
-                selection.startSelection(point);
-            }
-            return;
         }
 
         if (selectedTool === "text") {
@@ -177,7 +174,7 @@ const useCanvasEvents = (
         }
 
         // Clear selection when starting to draw
-        if (selectedTool !== "select" && selectedTool !== "image") {
+        if (selectedTool !== "hand" && selectedTool !== "select" && selectedTool !== "image") {
             selection.clearSelection();
         }
 
@@ -188,7 +185,7 @@ const useCanvasEvents = (
         } else if (selectedTool === "eraser") {
             eraser.startErasing(point);
         }
-    }, [selectedTool, getRelativeCoords, panning, imageToPlace, shapes, selection, drawing, eraser, isPointInElement, saveToHistory, setShapes, setImageToPlace, onToolChange, strokeWidth, setTextInput, opacity, fileInputRef, setLoadedImages]); // Add setLoadedImages to dependency
+    }, [selectedTool, getRelativeCoords, shapes, selection, drawing, eraser, isPointInElement, saveToHistory, setShapes, setImageToPlace, onToolChange, strokeWidth, setTextInput, opacity, fileInputRef, setLoadedImages]);
 
     // Mouse move handler
     const handleMouseMove = useCallback((e) => {
@@ -200,9 +197,14 @@ const useCanvasEvents = (
 
         const point = getRelativeCoords(e);
 
-        // Handle selection box
-        if (selection.isSelecting && selectedTool === "select") {
-            selection.updateSelection(point, selection.selectionBox);
+        // Handle selection box for hand tool
+        if (selection.isSelecting && (selectedTool === "hand" || selectedTool === "select")) {
+            // Need to pass the start point, not the selection box
+            const startPoint = selection.selectionBox ? {
+                x: selection.selectionBox.x,
+                y: selection.selectionBox.y
+            } : null;
+            selection.updateSelection(point, startPoint);
             return;
         }
 
@@ -219,8 +221,8 @@ const useCanvasEvents = (
         // Stop panning
         panning.stopPanning();
 
-        // Handle selection completion
-        if (selection.isSelecting && selectedTool === "select") {
+        // Handle selection completion for hand tool
+        if (selection.isSelecting && (selectedTool === "hand" || selectedTool === "select")) {
             selection.finishSelection();
             return;
         }
