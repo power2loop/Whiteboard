@@ -18,6 +18,9 @@ function App() {
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [opacity, setOpacity] = useState(100);
 
+  // Canvas background color state
+  const [canvasBackgroundColor, setCanvasBackgroundColor] = useState("#ffffff");
+
   // Undo/Redo state
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -114,6 +117,7 @@ function App() {
             strokeStyle={strokeStyle}
             backgroundColor={backgroundColor}
             opacity={opacity}
+            canvasBackgroundColor={canvasBackgroundColor}
             onUndoFunction={(undoFn) => { undoFunctionRef.current = undoFn; }}
             onRedoFunction={(redoFn) => { redoFunctionRef.current = redoFn; }}
             onCanUndo={setCanUndo}
@@ -128,6 +132,10 @@ function App() {
             onRedo={handleRedo}
             canUndo={canUndo}
             canRedo={canRedo}
+            selectedColor={selectedColor}
+            onColorChange={setSelectedColor}
+            canvasBackgroundColor={canvasBackgroundColor}
+            onCanvasBackgroundColorChange={setCanvasBackgroundColor}
           />
         </footer>
       </div>

@@ -10,12 +10,19 @@ const BottomControls = ({
   canUndo = false,
   canRedo = false,
   selectedColor = "#8F4A3D",
-  onColorChange
+  onColorChange,
+  canvasBackgroundColor = "#ffffff",
+  onCanvasBackgroundColorChange
 }) => {
-  const [color, setColor] = useColor(selectedColor);
+  // Initialize colors with proper format for react-color-palette
+  const [color, setColor] = useColor(selectedColor || "#000000");
+  const [bgColor, setBgColor] = useColor(canvasBackgroundColor || "#ffffff");
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showBgColorPicker, setShowBgColorPicker] = useState(false);
   const colorPickerRef = useRef(null);
+  const bgColorPickerRef = useRef(null);
   const colorButtonRef = useRef(null);
+  const bgColorButtonRef = useRef(null);
 
   const handleUndo = () => {
     if (canUndo && onUndo) {
@@ -29,64 +36,109 @@ const BottomControls = ({
     }
   };
 
-  const handleColorChange = (newColor) => {
-    setColor(newColor);
-    if (onColorChange) {
-      onColorChange(newColor.hex);
+  // const handleColorChange = (newColor) => {
+  //   setColor(newColor);
+  //   if (onColorChange && newColor?.hex) {
+  //     onColorChange(newColor.hex);
+  //   }
+  // };
+
+  const handleBgColorChange = (newColor) => {
+    setBgColor(newColor);
+    if (onCanvasBackgroundColorChange && newColor?.hex) {
+      onCanvasBackgroundColorChange(newColor.hex);
     }
   };
 
-  const toggleColorPicker = () => {
-    setShowColorPicker(!showColorPicker);
+  // const toggleColorPicker = () => {
+  //   setShowColorPicker(!showColorPicker);
+  // };
+
+  const toggleBgColorPicker = () => {
+    setShowBgColorPicker(!showBgColorPicker);
   };
 
-  // Safe color hex extraction
-  const getColorHex = () => {
-    if (!color || !color.hex) return selectedColor;
-    return color.hex;
+  // Safe color hex extraction with fallbacks
+  // const getColorHex = () => {
+  //   return color?.hex || selectedColor || "#000000";
+  // };
+
+  const getBgColorHex = () => {
+    return bgColor?.hex || canvasBackgroundColor || "#ffffff";
   };
 
   // Safe color hex display (without #)
-  const getDisplayHex = () => {
-    const hex = getColorHex();
+  // const getDisplayHex = () => {
+  //   const hex = getColorHex();
+  //   return hex.startsWith('#') ? hex.slice(1).toUpperCase() : hex.toUpperCase();
+  // };
+
+  const getBgDisplayHex = () => {
+    const hex = getBgColorHex();
     return hex.startsWith('#') ? hex.slice(1).toUpperCase() : hex.toUpperCase();
   };
 
   // Close color picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // if (
+      //   colorPickerRef.current &&
+      //   !colorPickerRef.current.contains(event.target) &&
+      //   colorButtonRef.current &&
+      //   !colorButtonRef.current.contains(event.target)
+      // ) {
+      //   setShowColorPicker(false);
+      // }
+
       if (
-        colorPickerRef.current &&
-        !colorPickerRef.current.contains(event.target) &&
-        colorButtonRef.current &&
-        !colorButtonRef.current.contains(event.target)
+        bgColorPickerRef.current &&
+        !bgColorPickerRef.current.contains(event.target) &&
+        bgColorButtonRef.current &&
+        !bgColorButtonRef.current.contains(event.target)
       ) {
-        setShowColorPicker(false);
+        setShowBgColorPicker(false);
       }
     };
 
-    if (showColorPicker) {
+    if (showBgColorPicker) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showColorPicker]);
+  }, [showBgColorPicker]);
 
-  // Update color when prop changes
+  // Update color when prop changes - with proper error handling
+  // useEffect(() => {
+  //   if (selectedColor && selectedColor !== getColorHex()) {
+  //     try {
+  //       setColor(selectedColor);
+  //     } catch (error) {
+  //       console.warn('Error setting color:', error);
+  //       setColor("#000000"); // Fallback to black
+  //     }
+  //   }
+  // }, [selectedColor]);
+
   useEffect(() => {
-    if (selectedColor && selectedColor !== getColorHex()) {
-      setColor(selectedColor);
+    if (canvasBackgroundColor && canvasBackgroundColor !== getBgColorHex()) {
+      try {
+        setBgColor(canvasBackgroundColor);
+      } catch (error) {
+        console.warn('Error setting background color:', error);
+        setBgColor("#ffffff"); // Fallback to white
+      }
     }
-  }, [selectedColor]);
+  }, [canvasBackgroundColor]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Close color picker on Escape
-      if (e.key === 'Escape' && showColorPicker) {
-        setShowColorPicker(false);
+      if (e.key === 'Escape' && (showBgColorPicker)) {
+        // setShowColorPicker(false);
+        setShowBgColorPicker(false);
         return;
       }
 
@@ -101,40 +153,41 @@ const BottomControls = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, onUndo, onRedo, showColorPicker]);
+  }, [canUndo, canRedo, onUndo, onRedo, showBgColorPicker]);
 
   return (
     <div className='bottomcontrols-container'>
-      <div className="control-group color-control-group">
-        <div className="color-picker-wrapper">
+      {/* Stroke Color Picker */}
+      {/* <div className="control-group color-control-group">
+        <div className="color-picker-wrapper"> 
           <button
             ref={colorButtonRef}
             className="color-picker-button"
             onClick={toggleColorPicker}
-            aria-label="Select color"
-            title="Select color"
+            aria-label="Select stroke color"
+            title="Select stroke color"
           >
-            <div 
+            <div
               className="color-preview-circle"
               style={{ backgroundColor: getColorHex() }}
             />
             <span className="color-hex-display">#{getDisplayHex()}</span>
           </button>
-          
+
           {showColorPicker && color && (
-            <div 
+            <div
               ref={colorPickerRef}
               className="color-picker-popup"
-            > 
-              <ColorPicker 
-                color={color} 
+            >
+              <ColorPicker
+                color={color}
                 onChange={handleColorChange}
                 hideInput={["rgb", "hsv"]}
               />
-              
+
               <div className="color-picker-footer">
                 <div className="selected-color-info">
-                  <div 
+                  <div
                     className="selected-color-swatch"
                     style={{ backgroundColor: getColorHex() }}
                   />
@@ -144,8 +197,51 @@ const BottomControls = ({
             </div>
           )}
         </div>
+      </div> */}
+
+      {/* Background Color Picker */}
+      <div className="control-group color-control-group">
+        <div className="color-picker-wrapper">
+          <button
+            ref={bgColorButtonRef}
+            className="color-picker-button"
+            onClick={toggleBgColorPicker}
+            aria-label="Select canvas background color"
+            title="Select canvas background color"
+          >
+            <div
+              className="color-preview-circle"
+              style={{ backgroundColor: getBgColorHex() }}
+            />
+            <span className="color-hex-display">BG #{getBgDisplayHex()}</span>
+          </button>
+
+          {showBgColorPicker && bgColor && (
+            <div
+              ref={bgColorPickerRef}
+              className="color-picker-popup"
+            >
+              <ColorPicker
+                color={bgColor}
+                onChange={handleBgColorChange}
+                hideInput={["rgb", "hsv"]}
+              />
+
+              <div className="color-picker-footer">
+                <div className="selected-color-info">
+                  <div
+                    className="selected-color-swatch"
+                    style={{ backgroundColor: getBgColorHex() }}
+                  />
+                  <span className="selected-color-text">{getBgColorHex().toUpperCase()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      
+
+      {/* Undo/Redo Controls */}
       <div className='control-group'>
         <button
           className={`control-btn ${!canUndo ? 'disabled' : ''}`}

@@ -19,6 +19,7 @@ export default function Canvas({
   strokeStyle = "solid",
   backgroundColor = "#ffffff",
   opacity = 100,
+  canvasBackgroundColor = "#ffffff",
   onToolChange,
   onUndoFunction,
   onRedoFunction,
@@ -200,7 +201,7 @@ export default function Canvas({
     fileInputRef,
     handlePasteFromClipboard,
     setLoadedImages,
-    cursor // Pass cursor utilities to events hook
+    cursor
   );
 
   // Clear all canvas content function
@@ -252,7 +253,7 @@ export default function Canvas({
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
 
-      tempCtx.fillStyle = '#ffffff';
+      tempCtx.fillStyle = canvasBackgroundColor;
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       tempCtx.drawImage(canvas, 0, 0);
 
@@ -302,7 +303,7 @@ export default function Canvas({
       console.error('Copy canvas error:', error);
       throw error;
     }
-  }, []);
+  }, [canvasBackgroundColor]);
 
   // Expose copy function to parent component
   useEffect(() => {
@@ -324,7 +325,7 @@ export default function Canvas({
       canvas.height = window.innerHeight;
     }
 
-    // Use the renderer hook's redraw function
+    // Use the renderer hook's redraw function with canvas background color
     renderer.redraw(
       canvasRef,
       shapes,
@@ -339,9 +340,10 @@ export default function Canvas({
       selectedColor,
       strokeWidth,
       opacity,
-      ERASER_RADIUS
+      ERASER_RADIUS,
+      canvasBackgroundColor
     );
-  }, [shapes, drawing.penPoints, drawing.laserPoints, eraser.eraserPath, eraser.markedIds, drawing.isDrawing, selectedTool, drawing.startPoint, drawing.currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panning.panOffset, selection.selectedElements, selection.selectionBox, selection.isSelecting, renderer, loadedImages]);
+  }, [shapes, drawing.penPoints, drawing.laserPoints, eraser.eraserPath, eraser.markedIds, drawing.isDrawing, selectedTool, drawing.startPoint, drawing.currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panning.panOffset, selection.selectedElements, selection.selectionBox, selection.isSelecting, renderer, loadedImages, canvasBackgroundColor]);
 
   // Fade out laser strokes automatically
   useEffect(() => {
@@ -532,7 +534,7 @@ export default function Canvas({
         aria-label="whiteboard-canvas"
         style={{
           cursor: cursor.getCursorStyle(),
-          backgroundColor: 'transparent'
+          backgroundColor: canvasBackgroundColor
         }}
       />
 
