@@ -1,5 +1,128 @@
 import { useCallback } from 'react';
 
+// In your useCanvasRenderer.js, update the selection rendering
+const renderSelection = (ctx, shapes, selectedElements, selectionBox) => {
+    // Draw selection box if actively selecting
+    if (selectionBox && selectionBox.width > 0 && selectionBox.height > 0) {
+        ctx.save();
+        ctx.strokeStyle = '#0066cc';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.width, selectionBox.height);
+        ctx.restore();
+    }
+
+    // Helper function to calculate square bounds
+    const calculateSquareBounds = (start, end) => {
+        const deltaX = end.x - start.x;
+        const deltaY = end.y - start.y;
+        const side = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+        
+        const width = side * Math.sign(deltaX || 1);
+        const height = side * Math.sign(deltaY || 1);
+        
+        const x = width >= 0 ? start.x : start.x + width;
+        const y = height >= 0 ? start.y : start.y + height;
+        
+        return { x, y, width: Math.abs(width), height: Math.abs(height) };
+    };
+
+    // Draw selection indicators around selected elements
+    selectedElements.forEach(index => {
+        const shape = shapes[index];
+        if (!shape) return;
+
+        let bounds;
+        
+        if (shape.tool === "image") {
+            bounds = {
+                x: shape.x,
+                y: shape.y,
+                width: shape.width,
+                height: shape.height
+            };
+        } else if (shape.tool === "text") {
+            const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+            const textHeight = (shape.fontSize || 16) * 1.2;
+            bounds = {
+                x: shape.x,
+                y: shape.y,
+                width: textWidth,
+                height: textHeight
+            };
+        } else if (shape.tool === "pen" || shape.tool === "laser") {
+            const points = shape.points;
+            if (points.length === 0) return;
+            
+            let minX = points[0].x, maxX = points[0].x;
+            let minY = points[0].y, maxY = points[0].y;
+            
+            points.forEach(point => {
+                minX = Math.min(minX, point.x);
+                maxX = Math.max(maxX, point.x);
+                minY = Math.min(minY, point.y);
+                maxY = Math.max(maxY, point.y);
+            });
+            
+            bounds = {
+                x: minX - 5,
+                y: minY - 5,
+                width: maxX - minX + 10,
+                height: maxY - minY + 10
+            };
+        } else if (shape.tool === "square") {
+            // Use the same logic as square drawing
+            bounds = calculateSquareBounds(shape.start, shape.end);
+            bounds.x -= 3;
+            bounds.y -= 3;
+            bounds.width += 6;
+            bounds.height += 6;
+        } else {
+            // Other shape tools
+            const minX = Math.min(shape.start.x, shape.end.x);
+            const maxX = Math.max(shape.start.x, shape.end.x);
+            const minY = Math.min(shape.start.y, shape.end.y);
+            const maxY = Math.max(shape.start.y, shape.end.y);
+            
+            bounds = {
+                x: minX - 3,
+                y: minY - 3,
+                width: maxX - minX + 6,
+                height: maxY - minY + 6
+            };
+        }
+
+        // Draw selection border
+        ctx.save();
+        ctx.strokeStyle = '#0066cc';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        
+        // Draw corner handles
+        const handleSize = 8;
+        ctx.fillStyle = '#0066cc';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        
+        const corners = [
+            [bounds.x - handleSize/2, bounds.y - handleSize/2],
+            [bounds.x + bounds.width - handleSize/2, bounds.y - handleSize/2],
+            [bounds.x - handleSize/2, bounds.y + bounds.height - handleSize/2],
+            [bounds.x + bounds.width - handleSize/2, bounds.y + bounds.height - handleSize/2]
+        ];
+        
+        corners.forEach(([x, y]) => {
+            ctx.fillRect(x, y, handleSize, handleSize);
+            ctx.strokeRect(x, y, handleSize, handleSize);
+        });
+        
+        ctx.restore();
+    });
+};
+
+
 const useCanvasRenderer = () => {
     const applyStrokeStyle = useCallback((ctx, sStyle) => {
         switch (sStyle) {
@@ -340,7 +463,8 @@ const useCanvasRenderer = () => {
         drawEraserPath,
         drawSelectionBox,
         drawSelectionHighlight,
-        applyStrokeStyle
+        applyStrokeStyle,
+        renderSelection
     };
 };
 

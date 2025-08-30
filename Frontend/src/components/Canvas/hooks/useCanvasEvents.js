@@ -187,34 +187,35 @@ const useCanvasEvents = (
         }
     }, [selectedTool, getRelativeCoords, shapes, selection, drawing, eraser, isPointInElement, saveToHistory, setShapes, setImageToPlace, onToolChange, strokeWidth, setTextInput, opacity, fileInputRef, setLoadedImages]);
 
-    // Mouse move handler
-    const handleMouseMove = useCallback((e) => {
-        // Handle panning
-        if (panning.isPanning && selectedTool === "hand") {
-            panning.updatePanning(e);
-            return;
-        }
+// In handleMouseMove, fix the startPoint calculation
+const handleMouseMove = useCallback((e) => {
+    // Handle panning
+    if (panning.isPanning && selectedTool === "hand") {
+        panning.updatePanning(e);
+        return;
+    }
 
-        const point = getRelativeCoords(e);
+    const point = getRelativeCoords(e);
 
-        // Handle selection box for hand tool
-        if (selection.isSelecting && (selectedTool === "hand" || selectedTool === "select")) {
-            // Need to pass the start point, not the selection box
-            const startPoint = selection.selectionBox ? {
-                x: selection.selectionBox.x,
-                y: selection.selectionBox.y
-            } : null;
-            selection.updateSelection(point, startPoint);
-            return;
-        }
+    // Handle selection box for hand tool
+    if (selection.isSelecting && (selectedTool === "hand" || selectedTool === "select")) {
+        // Get the actual start point from when selection began
+        const startPoint = selection.selectionStartPoint || {
+            x: selection.selectionBox?.x || point.x,
+            y: selection.selectionBox?.y || point.y
+        };
+        selection.updateSelection(point, startPoint);
+        return;
+    }
 
-        // Handle drawing
-        if (drawing.isDrawingTool()) {
-            drawing.updateDrawing(point);
-        } else if (selectedTool === "eraser" && eraser.isErasing) {
-            eraser.updateErasing(point, interpolatePoints, shapeIntersectsEraser);
-        }
-    }, [panning, selectedTool, getRelativeCoords, selection, drawing, eraser, interpolatePoints, shapeIntersectsEraser]);
+    // Handle drawing
+    if (drawing.isDrawingTool()) {
+        drawing.updateDrawing(point);
+    } else if (selectedTool === "eraser" && eraser.isErasing) {
+        eraser.updateErasing(point, interpolatePoints, shapeIntersectsEraser);
+    }
+}, [panning, selectedTool, getRelativeCoords, selection, drawing, eraser, interpolatePoints, shapeIntersectsEraser]);
+
 
     // Mouse up handler
     const handleMouseUp = useCallback(() => {

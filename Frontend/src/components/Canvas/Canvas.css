@@ -24,18 +24,6 @@
   }
 }
 
-.eraser-cursor-pulse {
-  animation: pulse 1s infinite;
-  border-radius: 50%;
-  border: 2px solid #aaa;
-  position: absolute;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  mix-blend-mode: difference;
-  background: rgba(200, 200, 200, 0.13);
-  z-index: 3;
-}
-
 .image-placement-cursor {
   border-radius: 4px;
   opacity: 0.8;
