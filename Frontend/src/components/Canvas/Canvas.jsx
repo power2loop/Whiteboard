@@ -7,6 +7,7 @@ import useCanvasPanning from './hooks/useCanvasPanning';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
 import useCanvasEvents from './hooks/useCanvasEvents';
 import useCursor from './hooks/useCursor';
+import useCanvasImages from './hooks/useCanvasImages';
 import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
@@ -32,9 +33,7 @@ export default function Canvas({
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
-  const fileInputRef = useRef(null);
   const [shapes, setShapes] = useState([]);
-  const [loadedImages, setLoadedImages] = useState(new Map());
 
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -44,13 +43,6 @@ export default function Canvas({
     value: "",
     fontSize: 16
   });
-
-  // Image placement state
-  const [imageToPlace, setImageToPlace] = useState(null);
-
-  // NEW: Image preview state
-  const [imagePreview, setImagePreview] = useState(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   // Use hooks
   const { saveToHistory } = useUndoRedo(
@@ -76,8 +68,18 @@ export default function Canvas({
   const panning = useCanvasPanning();
   const renderer = useCanvasRenderer();
 
+  // Use the new image hook
+  const images = useCanvasImages(
+    shapes,
+    setShapes,
+    saveToHistory,
+    panning,
+    opacity,
+    canvasRef
+  );
+
   // Add cursor hook
-  const cursor = useCursor(selectedTool, panning.panOffset, imageToPlace, ERASER_RADIUS);
+  const cursor = useCursor(selectedTool, panning.panOffset, images.imageToPlace, ERASER_RADIUS);
 
   // Function to check if a point is inside an element
   const isPointInElement = useCallback((point, shape) => {
@@ -116,120 +118,6 @@ export default function Canvas({
     }
   }, []);
 
-  // Handle paste from clipboard
-  const handlePasteFromClipboard = async () => {
-    try {
-      if (!navigator.clipboard || !navigator.clipboard.read) {
-        console.log('Clipboard API not supported');
-        return;
-      }
-
-      const clipboardItems = await navigator.clipboard.read();
-
-      for (const clipboardItem of clipboardItems) {
-        for (const type of clipboardItem.types) {
-          if (type.startsWith('image/')) {
-            const blob = await clipboardItem.getType(type);
-            const reader = new FileReader();
-
-            reader.onload = (event) => {
-              const img = new Image();
-              img.onload = () => {
-                const maxSize = 300;
-                let width = img.naturalWidth;
-                let height = img.naturalHeight;
-
-                if (width > maxSize || height > maxSize) {
-                  const ratio = Math.min(maxSize / width, maxSize / height);
-                  width = width * ratio;
-                  height = height * ratio;
-                }
-
-                const canvas = canvasRef.current;
-                if (canvas) {
-                  const centerX = (canvas.width / 2 - panning.panOffset.x);
-                  const centerY = (canvas.height / 2 - panning.panOffset.y);
-
-                  saveToHistory(shapes);
-
-                  const imageId = `img_${Date.now()}_${Math.random()}`;
-
-                  const newImg = new Image();
-                  newImg.onload = () => {
-                    setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
-                  };
-                  newImg.src = event.target.result;
-
-                  setShapes(prev => [...prev, {
-                    tool: "image",
-                    id: imageId,
-                    x: centerX - width / 2,
-                    y: centerY - height / 2,
-                    width,
-                    height,
-                    src: event.target.result,
-                    opacity: opacity / 100
-                  }]);
-                }
-              };
-              img.src = event.target.result;
-            };
-
-            reader.readAsDataURL(blob);
-            return;
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error pasting from clipboard:', error);
-    }
-  };
-
-  // NEW: Handle click to place image
-  const handleImagePlacement = useCallback((e) => {
-    if (!imagePreview) return false;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return false;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left - panning.panOffset.x;
-    const y = e.clientY - rect.top - panning.panOffset.y;
-
-    // Place the image at clicked position
-    saveToHistory(shapes);
-
-    const imageId = `opened_img_${Date.now()}_${Math.random()}`;
-
-    // Create image element and add to loaded images
-    const newImg = new Image();
-    newImg.onload = () => {
-      setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
-    };
-    newImg.src = imagePreview.src;
-
-    // Add image shape to canvas at clicked position
-    setShapes(prev => [...prev, {
-      tool: "image",
-      id: imageId,
-      x: x - imagePreview.width / 2, // Center on click point
-      y: y - imagePreview.height / 2,
-      width: imagePreview.width,
-      height: imagePreview.height,
-      src: imagePreview.src,
-      opacity: opacity / 100,
-      name: imagePreview.name || 'opened-image'
-    }]);
-
-    console.log(`Image "${imagePreview.name}" placed at position (${Math.round(x)}, ${Math.round(y)})`);
-
-    // Clear preview after placing - user needs to open again for next image
-    setImagePreview(null);
-    setMousePosition({ x: 0, y: 0 });
-
-    return true;
-  }, [imagePreview, shapes, saveToHistory, panning.panOffset, opacity]);
-
   // DECLARE events FIRST - before any callbacks that use it
   const events = useCanvasEvents(
     canvasRef,
@@ -244,44 +132,36 @@ export default function Canvas({
     saveToHistory,
     setShapes,
     setTextInput,
-    setImageToPlace,
-    imageToPlace,
+    images.setImageToPlace,
+    images.imageToPlace,
     selectedColor,
     strokeWidth,
     opacity,
-    fileInputRef,
-    handlePasteFromClipboard,
-    setLoadedImages,
+    images.fileInputRef,
+    images.handlePasteFromClipboard,
+    images.setLoadedImages,
     cursor
   );
 
-  // NEW: Enhanced mouse down handler that includes image placement - AFTER events declaration
+  // Enhanced mouse down handler that includes image placement
   const handleEnhancedMouseDown = useCallback((e) => {
     // First check if we're placing an image
-    if (handleImagePlacement(e)) {
+    if (images.handleImagePlacement(e)) {
       return; // Image was placed, don't continue with other mouse handling
     }
 
     // Otherwise, use normal mouse down handling
     events.handleMouseDown(e);
-  }, [handleImagePlacement, events]);
+  }, [images.handleImagePlacement, events]);
 
-  // NEW: Handle mouse move for image preview
+  // Handle mouse move with image preview
   const handleMouseMoveWithPreview = useCallback((e) => {
-    if (imagePreview) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left - panning.panOffset.x;
-        const y = e.clientY - rect.top - panning.panOffset.y;
-        setMousePosition({ x, y });
-      }
-    }
+    images.handleMouseMoveWithPreview(e);
 
     // Continue with normal mouse move handling
     cursor.updateMousePosition(e);
     events.handleCursorMove(e);
-  }, [imagePreview, cursor, events, panning.panOffset]);
+  }, [images, cursor, events]);
 
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
@@ -296,7 +176,7 @@ export default function Canvas({
       selection.resetSelection();
       eraser.resetEraser();
       panning.resetPan();
-      setLoadedImages(new Map());
+      images.resetImageStates();
 
       setTextInput({
         show: false,
@@ -306,15 +186,9 @@ export default function Canvas({
         fontSize: 16
       });
 
-      setImageToPlace(null);
-
-      // Clear image preview
-      setImagePreview(null);
-      setMousePosition({ x: 0, y: 0 });
-
       console.log('Canvas cleared successfully');
     }
-  }, [shapes, saveToHistory, drawing, selection, eraser, panning]);
+  }, [shapes, saveToHistory, drawing, selection, eraser, panning, images]);
 
   // Expose clear function to parent component
   useEffect(() => {
@@ -337,29 +211,7 @@ export default function Canvas({
       setShapes(canvasData.shapes);
 
       // Handle images - reload them
-      const imageShapes = canvasData.shapes.filter(shape => shape.tool === 'image');
-      if (imageShapes.length > 0) {
-        const newLoadedImages = new Map();
-        let loadedCount = 0;
-
-        imageShapes.forEach(imageShape => {
-          const img = new Image();
-          img.onload = () => {
-            newLoadedImages.set(imageShape.id, img);
-            loadedCount++;
-
-            // Update loaded images when all images are loaded
-            if (loadedCount === imageShapes.length) {
-              setLoadedImages(prev => new Map([...prev, ...newLoadedImages]));
-            }
-          };
-          img.onerror = () => {
-            console.error('Failed to load image:', imageShape.src);
-            loadedCount++;
-          };
-          img.src = imageShape.src;
-        });
-      }
+      images.loadImagesFromCanvasData(canvasData);
 
       // Reset other states
       drawing.resetDrawing();
@@ -374,13 +226,13 @@ export default function Canvas({
         fontSize: 16
       });
 
-      setImageToPlace(null);
-      setImagePreview(null);
-      setMousePosition({ x: 0, y: 0 });
+      images.setImageToPlace(null);
+      images.setImagePreview(null);
+      images.setMousePosition({ x: 0, y: 0 });
 
       console.log('Canvas data loaded successfully');
     }
-  }, [shapes, saveToHistory, drawing, selection, eraser]);
+  }, [shapes, saveToHistory, drawing, selection, eraser, images]);
 
   // Expose load function to parent component
   useEffect(() => {
@@ -389,60 +241,18 @@ export default function Canvas({
     }
   }, [loadCanvasData, onLoadCanvasData]);
 
-  // Add image to canvas function - now shows preview
-  const addImageToCanvas = useCallback((imageSrc, imageName) => {
-    const img = new Image();
-    img.onload = () => {
-      const maxSize = 400;
-      let width = img.naturalWidth;
-      let height = img.naturalHeight;
-
-      // Resize if too large
-      if (width > maxSize || height > maxSize) {
-        const ratio = Math.min(maxSize / width, maxSize / height);
-        width = width * ratio;
-        height = height * ratio;
-      }
-
-      // Set image preview data
-      setImagePreview({
-        src: imageSrc,
-        width,
-        height,
-        name: imageName
-      });
-
-      console.log(`Image "${imageName}" loaded. Move mouse on canvas to preview, click to place.`);
-    };
-
-    img.onerror = () => {
-      console.error('Failed to load image:', imageName);
-      alert('Failed to load the selected image.');
-    };
-
-    img.src = imageSrc;
-  }, []);
-
   // Expose addImage function to parent component
   useEffect(() => {
     if (onAddImageToCanvas) {
-      onAddImageToCanvas(addImageToCanvas);
+      onAddImageToCanvas(images.addImageToCanvas);
     }
-  }, [addImageToCanvas, onAddImageToCanvas]);
+  }, [images.addImageToCanvas, onAddImageToCanvas]);
 
   // Handle ESC key to cancel image preview
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && imagePreview) {
-        setImagePreview(null);
-        setMousePosition({ x: 0, y: 0 });
-        console.log('Image preview cancelled');
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [imagePreview]);
+    document.addEventListener('keydown', images.handleEscapeKey);
+    return () => document.removeEventListener('keydown', images.handleEscapeKey);
+  }, [images.handleEscapeKey]);
 
   // Copy canvas to clipboard function
   const copyCanvasToClipboard = useCallback(async () => {
@@ -534,7 +344,7 @@ export default function Canvas({
     renderer.redraw(
       canvasRef,
       shapes,
-      loadedImages,
+      images.loadedImages,
       panning.panOffset,
       selection.selectedElements,
       selection.selectionBox,
@@ -548,7 +358,7 @@ export default function Canvas({
       ERASER_RADIUS,
       canvasBackgroundColor
     );
-  }, [shapes, drawing.penPoints, drawing.laserPoints, eraser.eraserPath, eraser.markedIds, drawing.isDrawing, selectedTool, drawing.startPoint, drawing.currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panning.panOffset, selection.selectedElements, selection.selectionBox, selection.isSelecting, renderer, loadedImages, canvasBackgroundColor]);
+  }, [shapes, drawing.penPoints, drawing.laserPoints, eraser.eraserPath, eraser.markedIds, drawing.isDrawing, selectedTool, drawing.startPoint, drawing.currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, panning.panOffset, selection.selectedElements, selection.selectionBox, selection.isSelecting, renderer, images.loadedImages, canvasBackgroundColor]);
 
   // Fade out laser strokes automatically
   useEffect(() => {
@@ -576,43 +386,9 @@ export default function Canvas({
   // Trigger file input when image tool is selected
   useEffect(() => {
     if (selectedTool === "image") {
-      fileInputRef.current?.click();
+      images.fileInputRef.current?.click();
     }
-  }, [selectedTool]);
-
-  // Handle file selection for images
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const maxSize = 300;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = width * ratio;
-            height = height * ratio;
-          }
-
-          setImageToPlace({
-            src: event.target.result,
-            width,
-            height,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight
-          });
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    e.target.value = '';
-  };
+  }, [selectedTool, images.fileInputRef]);
 
   // Simple text submission
   const handleTextSubmit = () => {
@@ -661,111 +437,56 @@ export default function Canvas({
     }
   };
 
-function isPointInShape(shape, point) {
+  function isPointInShape(shape, point) {
+    const { start, end, tool } = shape;
     const distance = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    const CLICK_THRESHOLD = 10;
 
     const pointInRect = (point, start, end) => {
-        const minX = Math.min(start.x, end.x);
-        const maxX = Math.max(start.x, end.x);
-        const minY = Math.min(start.y, end.y);
-        const maxY = Math.max(start.y, end.y);
-        
-        return point.x >= minX - CLICK_THRESHOLD && 
-               point.x <= maxX + CLICK_THRESHOLD && 
-               point.y >= minY - CLICK_THRESHOLD && 
-               point.y <= maxY + CLICK_THRESHOLD;
-    };
-
-    const pointInSquare = (point, start, end) => {
-        // Calculate actual square dimensions
-        const size = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y));
-        const squareWidth = size * Math.sign(end.x - start.x);
-        const squareHeight = size * Math.sign(end.y - start.y);
-        
-        // Calculate actual square bounds
-        const squareEnd = {
-            x: start.x + squareWidth,
-            y: start.y + squareHeight
-        };
-        
-        return pointInRect(point, start, squareEnd);
-    };
-
-    const pointNearRectBorder = (point, start, end, threshold) => {
-        const minX = Math.min(start.x, end.x);
-        const maxX = Math.max(start.x, end.x);
-        const minY = Math.min(start.y, end.y);
-        const maxY = Math.max(start.y, end.y);
-
-        const nearLeft = Math.abs(point.x - minX) <= threshold && point.y >= minY - threshold && point.y <= maxY + threshold;
-        const nearRight = Math.abs(point.x - maxX) <= threshold && point.y >= minY - threshold && point.y <= maxY + threshold;
-        const nearTop = Math.abs(point.y - minY) <= threshold && point.x >= minX - threshold && point.x <= maxX + threshold;
-        const nearBottom = Math.abs(point.y - maxY) <= threshold && point.x >= minX - threshold && point.x <= maxX + threshold;
-
-        return nearLeft || nearRight || nearTop || nearBottom;
+      const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
+      const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
+      return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
     };
 
     const pointInDiamond = (point, start, end) => {
-        const cx = (start.x + end.x) / 2;
-        const cy = (start.y + end.y) / 2;
-        const w = Math.abs(end.x - start.x) / 2;
-        const h = Math.abs(end.y - start.y) / 2;
-        
-        if (w === 0 || h === 0) return false;
-        
-        const dx = Math.abs(point.x - cx);
-        const dy = Math.abs(point.y - cy);
-        return (dx / w + dy / h) <= 1.2;
+      const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+      const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
+      const dx = Math.abs(point.x - cx), dy = Math.abs(point.y - cy);
+      if (w === 0 || h === 0) return false;
+      return dx / w + dy / h <= 1;
     };
 
     const pointNearLine = (point, start, end, threshold) => {
-        const A = point.x - start.x;
-        const B = point.y - start.y;
-        const C = end.x - start.x;
-        const D = end.y - start.y;
-        const dot = A * C + B * D;
-        const len_sq = C * C + D * D;
-        
-        if (len_sq === 0) {
-            return distance(point, start) <= threshold;
-        }
-        
-        let param = dot / len_sq;
-        param = Math.max(0, Math.min(1, param));
-        
-        const xx = start.x + param * C;
-        const yy = start.y + param * D;
-        const dx = point.x - xx;
-        const dy = point.y - yy;
-        
-        return (dx * dx + dy * dy) <= (threshold * threshold);
+      const A = point.x - start.x, B = point.y - start.y;
+      const C = end.x - start.x, D = end.y - start.y;
+      const dot = A * C + B * D, len_sq = C * C + D * D;
+      let param = -1;
+      if (len_sq !== 0) param = dot / len_sq;
+      let xx, yy;
+      if (param < 0) { xx = start.x; yy = start.y; }
+      else if (param > 1) { xx = end.x; yy = end.y; }
+      else { xx = start.x + param * C; yy = start.y + param * D; }
+      const dx = point.x - xx, dy = point.y - yy;
+      return dx * dx + dy * dy <= threshold * threshold;
     };
 
-    const { start, end, tool } = shape;
-
     switch (tool) {
-        case "square":
-            // Use special square hit detection
-            return pointInSquare(point, start, end);
-        case "rectangle":
-            return pointInRect(point, start, end) || pointNearRectBorder(point, start, end, CLICK_THRESHOLD);
-        case "diamond":
-            return pointInDiamond(point, start, end);
-        case "circle":
-            const cx = (start.x + end.x) / 2;
-            const cy = (start.y + end.y) / 2;
-            const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
-            const distToCenter = distance(point, { x: cx, y: cy });
-            return Math.abs(distToCenter - r) <= CLICK_THRESHOLD || distToCenter <= r;
-        case "line":
-        case "arrow":
-            return pointNearLine(point, start, end, CLICK_THRESHOLD);
-        default:
-            return false;
+      case "square":
+      case "rectangle":
+        return pointInRect(point, start, end);
+      case "diamond":
+        return pointInDiamond(point, start, end);
+      case "circle":
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
+        const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
+        return distance(point, { x: cx, y: cy }) <= r;
+      case "line":
+      case "arrow":
+        return pointNearLine(point, start, end, ERASER_RADIUS);
+      default:
+        return false;
     }
-}
-
+  }
 
   // Get cursor render data
   const eraserCursor = cursor.renderEraserCursor();
@@ -790,20 +511,18 @@ function isPointInShape(shape, point) {
         tabIndex={0}
         aria-label="whiteboard-canvas"
         style={{
-          cursor: imagePreview ? 'none' : cursor.getCursorStyle(),
+          cursor: images.imagePreview ? 'none' : cursor.getCursorStyle(),
           backgroundColor: canvasBackgroundColor
         }}
       />
 
       <input
-        ref={fileInputRef}
+        ref={images.fileInputRef}
         type="file"
         accept="image/*"
-        onChange={handleFileSelect}
+        onChange={images.handleFileSelect}
         style={{ display: 'none' }}
       />
-
-      {/* Render only eraser and image cursors - crosshair cursor removed */}
 
       {/* Render only eraser and image cursors */}
       {eraserCursor && (
@@ -821,14 +540,14 @@ function isPointInShape(shape, point) {
       )}
 
       {/* Image preview that follows mouse */}
-      {imagePreview && (
+      {images.imagePreview && (
         <div
           style={{
             position: 'absolute',
-            left: mousePosition.x + panning.panOffset.x - imagePreview.width / 2,
-            top: mousePosition.y + panning.panOffset.y - imagePreview.height / 2,
-            width: imagePreview.width,
-            height: imagePreview.height,
+            left: images.mousePosition.x + panning.panOffset.x - images.imagePreview.width / 2,
+            top: images.mousePosition.y + panning.panOffset.y - images.imagePreview.height / 2,
+            width: images.imagePreview.width,
+            height: images.imagePreview.height,
             border: '2px dashed #4f46e5',
             borderRadius: '4px',
             backgroundColor: 'rgba(79, 70, 229, 0.1)',
@@ -842,7 +561,7 @@ function isPointInShape(shape, point) {
             fontWeight: '500'
           }}
         >
-          📷 {imagePreview.name}
+          📷 {images.imagePreview.name}
         </div>
       )}
 
