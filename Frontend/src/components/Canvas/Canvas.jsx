@@ -26,7 +26,9 @@ export default function Canvas({
   onCanUndo,
   onCanRedo,
   onCopyFunction,
-  onClearFunction
+  onClearFunction,
+  onLoadCanvasData,
+  onAddImageToCanvas
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
@@ -45,6 +47,10 @@ export default function Canvas({
 
   // Image placement state
   const [imageToPlace, setImageToPlace] = useState(null);
+
+  // NEW: Image preview state
+  const [imagePreview, setImagePreview] = useState(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   // Use hooks
   const { saveToHistory } = useUndoRedo(
@@ -179,31 +185,103 @@ export default function Canvas({
     }
   };
 
-// Canvas.jsx - Add this check in your mouse event handlers
-const events = useCanvasEvents(
-  canvasRef,
-  selectedTool,
-  shapes,
-  drawing,
-  selection,
-  eraser,
-  panning,
-  onToolChange,
-  isPointInElement,
-  saveToHistory,
-  setShapes,
-  setTextInput,
-  setImageToPlace,
-  imageToPlace,
-  selectedColor,
-  strokeWidth,
-  opacity,
-  fileInputRef,
-  handlePasteFromClipboard,
-  setLoadedImages,
-  cursor
-);
+  // NEW: Handle click to place image
+  const handleImagePlacement = useCallback((e) => {
+    if (!imagePreview) return false;
 
+    const canvas = canvasRef.current;
+    if (!canvas) return false;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - panning.panOffset.x;
+    const y = e.clientY - rect.top - panning.panOffset.y;
+
+    // Place the image at clicked position
+    saveToHistory(shapes);
+
+    const imageId = `opened_img_${Date.now()}_${Math.random()}`;
+
+    // Create image element and add to loaded images
+    const newImg = new Image();
+    newImg.onload = () => {
+      setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
+    };
+    newImg.src = imagePreview.src;
+
+    // Add image shape to canvas at clicked position
+    setShapes(prev => [...prev, {
+      tool: "image",
+      id: imageId,
+      x: x - imagePreview.width / 2, // Center on click point
+      y: y - imagePreview.height / 2,
+      width: imagePreview.width,
+      height: imagePreview.height,
+      src: imagePreview.src,
+      opacity: opacity / 100,
+      name: imagePreview.name || 'opened-image'
+    }]);
+
+    console.log(`Image "${imagePreview.name}" placed at position (${Math.round(x)}, ${Math.round(y)})`);
+
+    // Clear preview after placing - user needs to open again for next image
+    setImagePreview(null);
+    setMousePosition({ x: 0, y: 0 });
+
+    return true;
+  }, [imagePreview, shapes, saveToHistory, panning.panOffset, opacity]);
+
+  // DECLARE events FIRST - before any callbacks that use it
+  const events = useCanvasEvents(
+    canvasRef,
+    selectedTool,
+    shapes,
+    drawing,
+    selection,
+    eraser,
+    panning,
+    onToolChange,
+    isPointInElement,
+    saveToHistory,
+    setShapes,
+    setTextInput,
+    setImageToPlace,
+    imageToPlace,
+    selectedColor,
+    strokeWidth,
+    opacity,
+    fileInputRef,
+    handlePasteFromClipboard,
+    setLoadedImages,
+    cursor
+  );
+
+  // NEW: Enhanced mouse down handler that includes image placement - AFTER events declaration
+  const handleEnhancedMouseDown = useCallback((e) => {
+    // First check if we're placing an image
+    if (handleImagePlacement(e)) {
+      return; // Image was placed, don't continue with other mouse handling
+    }
+
+    // Otherwise, use normal mouse down handling
+    events.handleMouseDown(e);
+  }, [handleImagePlacement, events]);
+
+  // NEW: Handle mouse move for image preview
+  const handleMouseMoveWithPreview = useCallback((e) => {
+    if (imagePreview) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - panning.panOffset.x;
+        const y = e.clientY - rect.top - panning.panOffset.y;
+        setMousePosition({ x, y });
+      }
+    }
+
+    // Continue with normal mouse move handling
+    cursor.updateMousePosition(e);
+    events.handleCursorMove(e);
+  }, [imagePreview, cursor, events, panning.panOffset]);
 
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
@@ -229,6 +307,11 @@ const events = useCanvasEvents(
       });
 
       setImageToPlace(null);
+
+      // Clear image preview
+      setImagePreview(null);
+      setMousePosition({ x: 0, y: 0 });
+
       console.log('Canvas cleared successfully');
     }
   }, [shapes, saveToHistory, drawing, selection, eraser, panning]);
@@ -239,6 +322,127 @@ const events = useCanvasEvents(
       onClearFunction(clearAllCanvas);
     }
   }, [clearAllCanvas, onClearFunction]);
+
+  // Load canvas data function
+  const loadCanvasData = useCallback((canvasData) => {
+    if (canvasData && canvasData.shapes) {
+      console.log('Loading canvas data:', canvasData);
+
+      // Save current state to history before loading new data
+      if (shapes.length > 0) {
+        saveToHistory(shapes);
+      }
+
+      // Set the new shapes
+      setShapes(canvasData.shapes);
+
+      // Handle images - reload them
+      const imageShapes = canvasData.shapes.filter(shape => shape.tool === 'image');
+      if (imageShapes.length > 0) {
+        const newLoadedImages = new Map();
+        let loadedCount = 0;
+
+        imageShapes.forEach(imageShape => {
+          const img = new Image();
+          img.onload = () => {
+            newLoadedImages.set(imageShape.id, img);
+            loadedCount++;
+
+            // Update loaded images when all images are loaded
+            if (loadedCount === imageShapes.length) {
+              setLoadedImages(prev => new Map([...prev, ...newLoadedImages]));
+            }
+          };
+          img.onerror = () => {
+            console.error('Failed to load image:', imageShape.src);
+            loadedCount++;
+          };
+          img.src = imageShape.src;
+        });
+      }
+
+      // Reset other states
+      drawing.resetDrawing();
+      selection.resetSelection();
+      eraser.resetEraser();
+
+      setTextInput({
+        show: false,
+        x: 0,
+        y: 0,
+        value: "",
+        fontSize: 16
+      });
+
+      setImageToPlace(null);
+      setImagePreview(null);
+      setMousePosition({ x: 0, y: 0 });
+
+      console.log('Canvas data loaded successfully');
+    }
+  }, [shapes, saveToHistory, drawing, selection, eraser]);
+
+  // Expose load function to parent component
+  useEffect(() => {
+    if (onLoadCanvasData) {
+      onLoadCanvasData(loadCanvasData);
+    }
+  }, [loadCanvasData, onLoadCanvasData]);
+
+  // Add image to canvas function - now shows preview
+  const addImageToCanvas = useCallback((imageSrc, imageName) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxSize = 400;
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
+
+      // Resize if too large
+      if (width > maxSize || height > maxSize) {
+        const ratio = Math.min(maxSize / width, maxSize / height);
+        width = width * ratio;
+        height = height * ratio;
+      }
+
+      // Set image preview data
+      setImagePreview({
+        src: imageSrc,
+        width,
+        height,
+        name: imageName
+      });
+
+      console.log(`Image "${imageName}" loaded. Move mouse on canvas to preview, click to place.`);
+    };
+
+    img.onerror = () => {
+      console.error('Failed to load image:', imageName);
+      alert('Failed to load the selected image.');
+    };
+
+    img.src = imageSrc;
+  }, []);
+
+  // Expose addImage function to parent component
+  useEffect(() => {
+    if (onAddImageToCanvas) {
+      onAddImageToCanvas(addImageToCanvas);
+    }
+  }, [addImageToCanvas, onAddImageToCanvas]);
+
+  // Handle ESC key to cancel image preview
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && imagePreview) {
+        setImagePreview(null);
+        setMousePosition({ x: 0, y: 0 });
+        console.log('Image preview cancelled');
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [imagePreview]);
 
   // Copy canvas to clipboard function
   const copyCanvasToClipboard = useCallback(async () => {
@@ -575,11 +779,8 @@ function isPointInShape(shape, point) {
           cursor.cursorRef.current = el;
         }}
         className="drawing-canvas"
-        onMouseDown={events.handleMouseDown}
-        onMouseMove={(e) => {
-          cursor.updateMousePosition(e);
-          events.handleCursorMove(e);
-        }}
+        onMouseDown={handleEnhancedMouseDown}
+        onMouseMove={handleMouseMoveWithPreview}
         onMouseUp={events.handleMouseUp}
         onMouseEnter={cursor.handleMouseEnter}
         onMouseLeave={(e) => {
@@ -589,7 +790,7 @@ function isPointInShape(shape, point) {
         tabIndex={0}
         aria-label="whiteboard-canvas"
         style={{
-          cursor: cursor.getCursorStyle(),
+          cursor: imagePreview ? 'none' : cursor.getCursorStyle(),
           backgroundColor: canvasBackgroundColor
         }}
       />
@@ -603,11 +804,46 @@ function isPointInShape(shape, point) {
       />
 
       {/* Render only eraser and image cursors - crosshair cursor removed */}
+
+      {/* Render only eraser and image cursors */}
+      {eraserCursor && (
+        <div
+          className="eraser-cursor-pulse"
+          style={eraserCursor.style}
+        />
+      )}
+
       {imageCursor && (
         <div
           className="image-placement-cursor"
           style={imageCursor.style}
         />
+      )}
+
+      {/* Image preview that follows mouse */}
+      {imagePreview && (
+        <div
+          style={{
+            position: 'absolute',
+            left: mousePosition.x + panning.panOffset.x - imagePreview.width / 2,
+            top: mousePosition.y + panning.panOffset.y - imagePreview.height / 2,
+            width: imagePreview.width,
+            height: imagePreview.height,
+            border: '2px dashed #4f46e5',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+            pointerEvents: 'none',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            color: '#4f46e5',
+            fontWeight: '500'
+          }}
+        >
+          📷 {imagePreview.name}
+        </div>
       )}
 
       {textInput.show && (
