@@ -661,56 +661,111 @@ export default function Canvas({
     }
   };
 
-  function isPointInShape(shape, point) {
-    const { start, end, tool } = shape;
+function isPointInShape(shape, point) {
     const distance = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    const CLICK_THRESHOLD = 10;
 
     const pointInRect = (point, start, end) => {
-      const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
-      const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
-      return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+        const minX = Math.min(start.x, end.x);
+        const maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const maxY = Math.max(start.y, end.y);
+        
+        return point.x >= minX - CLICK_THRESHOLD && 
+               point.x <= maxX + CLICK_THRESHOLD && 
+               point.y >= minY - CLICK_THRESHOLD && 
+               point.y <= maxY + CLICK_THRESHOLD;
+    };
+
+    const pointInSquare = (point, start, end) => {
+        // Calculate actual square dimensions
+        const size = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+        const squareWidth = size * Math.sign(end.x - start.x);
+        const squareHeight = size * Math.sign(end.y - start.y);
+        
+        // Calculate actual square bounds
+        const squareEnd = {
+            x: start.x + squareWidth,
+            y: start.y + squareHeight
+        };
+        
+        return pointInRect(point, start, squareEnd);
+    };
+
+    const pointNearRectBorder = (point, start, end, threshold) => {
+        const minX = Math.min(start.x, end.x);
+        const maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const maxY = Math.max(start.y, end.y);
+
+        const nearLeft = Math.abs(point.x - minX) <= threshold && point.y >= minY - threshold && point.y <= maxY + threshold;
+        const nearRight = Math.abs(point.x - maxX) <= threshold && point.y >= minY - threshold && point.y <= maxY + threshold;
+        const nearTop = Math.abs(point.y - minY) <= threshold && point.x >= minX - threshold && point.x <= maxX + threshold;
+        const nearBottom = Math.abs(point.y - maxY) <= threshold && point.x >= minX - threshold && point.x <= maxX + threshold;
+
+        return nearLeft || nearRight || nearTop || nearBottom;
     };
 
     const pointInDiamond = (point, start, end) => {
-      const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
-      const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
-      const dx = Math.abs(point.x - cx), dy = Math.abs(point.y - cy);
-      if (w === 0 || h === 0) return false;
-      return dx / w + dy / h <= 1;
+        const cx = (start.x + end.x) / 2;
+        const cy = (start.y + end.y) / 2;
+        const w = Math.abs(end.x - start.x) / 2;
+        const h = Math.abs(end.y - start.y) / 2;
+        
+        if (w === 0 || h === 0) return false;
+        
+        const dx = Math.abs(point.x - cx);
+        const dy = Math.abs(point.y - cy);
+        return (dx / w + dy / h) <= 1.2;
     };
 
     const pointNearLine = (point, start, end, threshold) => {
-      const A = point.x - start.x, B = point.y - start.y;
-      const C = end.x - start.x, D = end.y - start.y;
-      const dot = A * C + B * D, len_sq = C * C + D * D;
-      let param = -1;
-      if (len_sq !== 0) param = dot / len_sq;
-      let xx, yy;
-      if (param < 0) { xx = start.x; yy = start.y; }
-      else if (param > 1) { xx = end.x; yy = end.y; }
-      else { xx = start.x + param * C; yy = start.y + param * D; }
-      const dx = point.x - xx, dy = point.y - yy;
-      return dx * dx + dy * dy <= threshold * threshold;
+        const A = point.x - start.x;
+        const B = point.y - start.y;
+        const C = end.x - start.x;
+        const D = end.y - start.y;
+        const dot = A * C + B * D;
+        const len_sq = C * C + D * D;
+        
+        if (len_sq === 0) {
+            return distance(point, start) <= threshold;
+        }
+        
+        let param = dot / len_sq;
+        param = Math.max(0, Math.min(1, param));
+        
+        const xx = start.x + param * C;
+        const yy = start.y + param * D;
+        const dx = point.x - xx;
+        const dy = point.y - yy;
+        
+        return (dx * dx + dy * dy) <= (threshold * threshold);
     };
 
+    const { start, end, tool } = shape;
+
     switch (tool) {
-      case "square":
-      case "rectangle":
-        return pointInRect(point, start, end);
-      case "diamond":
-        return pointInDiamond(point, start, end);
-      case "circle":
-        const cx = (start.x + end.x) / 2;
-        const cy = (start.y + end.y) / 2;
-        const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
-        return distance(point, { x: cx, y: cy }) <= r;
-      case "line":
-      case "arrow":
-        return pointNearLine(point, start, end, ERASER_RADIUS);
-      default:
-        return false;
+        case "square":
+            // Use special square hit detection
+            return pointInSquare(point, start, end);
+        case "rectangle":
+            return pointInRect(point, start, end) || pointNearRectBorder(point, start, end, CLICK_THRESHOLD);
+        case "diamond":
+            return pointInDiamond(point, start, end);
+        case "circle":
+            const cx = (start.x + end.x) / 2;
+            const cy = (start.y + end.y) / 2;
+            const r = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2) / 2;
+            const distToCenter = distance(point, { x: cx, y: cy });
+            return Math.abs(distToCenter - r) <= CLICK_THRESHOLD || distToCenter <= r;
+        case "line":
+        case "arrow":
+            return pointNearLine(point, start, end, CLICK_THRESHOLD);
+        default:
+            return false;
     }
-  }
+}
+
 
   // Get cursor render data
   const eraserCursor = cursor.renderEraserCursor();
@@ -747,6 +802,8 @@ export default function Canvas({
         onChange={handleFileSelect}
         style={{ display: 'none' }}
       />
+
+      {/* Render only eraser and image cursors - crosshair cursor removed */}
 
       {/* Render only eraser and image cursors */}
       {eraserCursor && (

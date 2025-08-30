@@ -1,7 +1,8 @@
-// useCanvasSelection.js - Updated version with better bounds checking
+// useCanvasSelection.js - Fixed version with proper function ordering
 import { useState, useCallback } from 'react';
 
 export default function useCanvasSelection(shapes) {
+    const [selectionStartPoint, setSelectionStartPoint] = useState(null);
     const [selectedElements, setSelectedElements] = useState([]);
     const [selectionBox, setSelectionBox] = useState(null);
     const [isSelecting, setIsSelecting] = useState(false);
@@ -28,16 +29,149 @@ export default function useCanvasSelection(shapes) {
         return selectedElements.includes(index);
     }, [selectedElements]);
 
+    // Improved element bounds checking
+const getElementBounds = useCallback((shape) => {
+    // Helper function to calculate square bounds
+    const calculateSquareBounds = (start, end) => {
+        const deltaX = end.x - start.x;
+        const deltaY = end.y - start.y;
+        const side = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+        
+        const width = side * Math.sign(deltaX || 1);
+        const height = side * Math.sign(deltaY || 1);
+        
+        const x = width >= 0 ? start.x : start.x + width;
+        const y = height >= 0 ? start.y : start.y + height;
+        
+        return { x, y, width: Math.abs(width), height: Math.abs(height) };
+    };
+
+    if (shape.tool === "pen" || shape.tool === "laser") {
+        const points = shape.points;
+        if (points.length === 0) return null;
+        
+        let minX = points[0].x, maxX = points[0].x;
+        let minY = points[0].y, maxY = points[0].y;
+        
+        points.forEach(point => {
+            minX = Math.min(minX, point.x);
+            maxX = Math.max(maxX, point.x);
+            minY = Math.min(minY, point.y);
+            maxY = Math.max(maxY, point.y);
+        });
+        
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    } else if (shape.tool === "text") {
+        const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+        const textHeight = (shape.fontSize || 16) * 1.2;
+        return { x: shape.x, y: shape.y, width: textWidth, height: textHeight };
+    } else if (shape.tool === "image") {
+        return { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+    } else if (shape.tool === "square") {
+        return calculateSquareBounds(shape.start, shape.end);
+    } else {
+        return {
+            x: Math.min(shape.start.x, shape.end.x),
+            y: Math.min(shape.start.y, shape.end.y),
+            width: Math.abs(shape.end.x - shape.start.x),
+            height: Math.abs(shape.end.y - shape.start.y)
+        };
+    }
+}, []);
+
+
+// Update the getElementsInSelectionBox function
+const getElementsInSelectionBox = useCallback((box) => {
+    if (!box || box.width < 1 || box.height < 1) return [];
+
+    // Helper function to calculate square bounds
+    const calculateSquareBounds = (start, end) => {
+        const deltaX = end.x - start.x;
+        const deltaY = end.y - start.y;
+        const side = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+        
+        const width = side * Math.sign(deltaX || 1);
+        const height = side * Math.sign(deltaY || 1);
+        
+        const x = width >= 0 ? start.x : start.x + width;
+        const y = height >= 0 ? start.y : start.y + height;
+        
+        return { x, y, width: Math.abs(width), height: Math.abs(height) };
+    };
+
+    const selectedIndices = [];
+
+    shapes.forEach((shape, index) => {
+        let isSelected = false;
+
+        if (shape.tool === "pen" || shape.tool === "laser") {
+            isSelected = shape.points.some(point =>
+                point.x >= box.x && point.x <= box.x + box.width &&
+                point.y >= box.y && point.y <= box.y + box.height
+            );
+        } else if (shape.tool === "text") {
+            const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+            const textHeight = (shape.fontSize || 16) * 1.2;
+            
+            isSelected = !(
+                shape.x + textWidth < box.x || 
+                shape.x > box.x + box.width ||
+                shape.y + textHeight < box.y || 
+                shape.y > box.y + box.height
+            );
+        } else if (shape.tool === "image") {
+            isSelected = !(
+                shape.x + shape.width < box.x || 
+                shape.x > box.x + box.width ||
+                shape.y + shape.height < box.y || 
+                shape.y > box.y + box.height
+            );
+        } else if (shape.tool === "square") {
+            const shapeBounds = calculateSquareBounds(shape.start, shape.end);
+            isSelected = !(
+                shapeBounds.x + shapeBounds.width < box.x || 
+                shapeBounds.x > box.x + box.width ||
+                shapeBounds.y + shapeBounds.height < box.y || 
+                shapeBounds.y > box.y + box.height
+            );
+        } else {
+            const shapeBounds = {
+                x: Math.min(shape.start.x, shape.end.x),
+                y: Math.min(shape.start.y, shape.end.y),
+                width: Math.abs(shape.end.x - shape.start.x),
+                height: Math.abs(shape.end.y - shape.start.y)
+            };
+
+            isSelected = !(
+                shapeBounds.x + shapeBounds.width < box.x || 
+                shapeBounds.x > box.x + box.width ||
+                shapeBounds.y + shapeBounds.height < box.y || 
+                shapeBounds.y > box.y + box.height
+            );
+        }
+
+        if (isSelected) {
+            selectedIndices.push(index);
+        }
+    });
+
+    return selectedIndices;
+}, [shapes]);
+
+
+
     // Start selection box drawing
     const startSelection = useCallback((point) => {
         setIsSelecting(true);
+        setSelectionStartPoint(point);
         setSelectionBox({ x: point.x, y: point.y, width: 0, height: 0 });
     }, []);
 
-    // Update selection box while dragging
+    // Update the updateSelection function
     const updateSelection = useCallback((point, startPoint) => {
         if (!isSelecting || !startPoint) return;
 
+        // Always create selection box from top-left to bottom-right
         const newSelectionBox = {
             x: Math.min(startPoint.x, point.x),
             y: Math.min(startPoint.y, point.y),
@@ -57,67 +191,8 @@ export default function useCanvasSelection(shapes) {
         }
         setIsSelecting(false);
         setSelectionBox(null);
-    }, [selectionBox]);
-
-    // Improved element bounds checking
-    const getElementBounds = useCallback((shape) => {
-        if (shape.tool === "pen" || shape.tool === "laser") {
-            const points = shape.points;
-            if (points.length === 0) return null;
-            
-            let minX = points[0].x, maxX = points[0].x;
-            let minY = points[0].y, maxY = points[0].y;
-            
-            points.forEach(point => {
-                minX = Math.min(minX, point.x);
-                maxX = Math.max(maxX, point.x);
-                minY = Math.min(minY, point.y);
-                maxY = Math.max(maxY, point.y);
-            });
-            
-            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-        } else if (shape.tool === "text") {
-            const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
-            const textHeight = (shape.fontSize || 16) * 1.2;
-            return { x: shape.x, y: shape.y, width: textWidth, height: textHeight };
-        } else if (shape.tool === "image") {
-            return { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
-        } else {
-            // Shape tools
-            return {
-                x: Math.min(shape.start.x, shape.end.x),
-                y: Math.min(shape.start.y, shape.end.y),
-                width: Math.abs(shape.end.x - shape.start.x),
-                height: Math.abs(shape.end.y - shape.start.y)
-            };
-        }
-    }, []);
-
-    // Get all elements within selection box with improved bounds checking
-    const getElementsInSelectionBox = useCallback((box) => {
-        if (!box) return [];
-
-        const selectedIndices = [];
-
-        shapes.forEach((shape, index) => {
-            const bounds = getElementBounds(shape);
-            if (!bounds) return;
-
-            // Check if shape bounds intersect with selection box
-            const intersects = !(
-                bounds.x + bounds.width < box.x || 
-                bounds.x > box.x + box.width ||
-                bounds.y + bounds.height < box.y || 
-                bounds.y > box.y + box.height
-            );
-
-            if (intersects) {
-                selectedIndices.push(index);
-            }
-        });
-
-        return selectedIndices;
-    }, [shapes, getElementBounds]);
+        setSelectionStartPoint(null);
+    }, [selectionBox, getElementsInSelectionBox]);
 
     // Select all elements
     const selectAll = useCallback(() => {
@@ -129,6 +204,7 @@ export default function useCanvasSelection(shapes) {
         setSelectedElements([]);
         setSelectionBox(null);
         setIsSelecting(false);
+        setSelectionStartPoint(null);
     }, []);
 
     return {
@@ -136,6 +212,7 @@ export default function useCanvasSelection(shapes) {
         selectedElements,
         selectionBox,
         isSelecting,
+        selectionStartPoint,
 
         // Functions
         clearSelection,
