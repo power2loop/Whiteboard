@@ -30,10 +30,11 @@ function App() {
   // Canvas action references
   const canvasCopyRef = useRef(null);
   const canvasClearRef = useRef(null);
+  const canvasLoadRef = useRef(null);
+  const canvasAddImageRef = useRef(null); // Add this new ref for adding images
 
- const handleToolSelect = (tool) => {
+  const handleToolSelect = (tool) => {
     setSelectedTool(tool);
-    // Update the condition to include "hand"
     if (["hand", "select", "image", "eraser"].includes(tool)) {
       setShowToolbar(false);
     } else {
@@ -77,6 +78,33 @@ function App() {
     }
   };
 
+  // Updated function to handle both canvas data and images
+  const handleOpenFile = (fileData) => {
+    if (fileData.type === 'canvas') {
+      // Handle JSON canvas file
+      if (canvasLoadRef.current && fileData.data) {
+        try {
+          canvasLoadRef.current(fileData.data);
+          console.log('Canvas file loaded successfully!');
+        } catch (error) {
+          console.error('Failed to load canvas file:', error);
+          alert('Failed to load canvas file. Please try again.');
+        }
+      }
+    } else if (fileData.type === 'image') {
+      // Handle image file
+      if (canvasAddImageRef.current) {
+        try {
+          canvasAddImageRef.current(fileData.src, fileData.name);
+          console.log('Image added to canvas successfully!');
+        } catch (error) {
+          console.error('Failed to add image to canvas:', error);
+          alert('Failed to add image to canvas. Please try again.');
+        }
+      }
+    }
+  };
+
   return (
     <div className="app">
       <div className="layout">
@@ -88,7 +116,7 @@ function App() {
           />
         </header>
         <aside className="sidebar">
-          <Sidebar />
+          <Sidebar onOpenFile={handleOpenFile} />
         </aside>
         <aside className="rightbar">
           <Rightbar />
@@ -125,6 +153,8 @@ function App() {
             onCanRedo={setCanRedo}
             onCopyFunction={(copyFn) => { canvasCopyRef.current = copyFn; }}
             onClearFunction={(clearFn) => { canvasClearRef.current = clearFn; }}
+            onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
+            onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
           />
         </main>
         <footer className="bottom-controls">
