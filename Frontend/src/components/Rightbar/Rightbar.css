@@ -136,7 +136,7 @@
 .dropdown-menu {
     position: absolute;
     top: 35px;
-    left: -140px;
+    right: 0;
     background: white;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
