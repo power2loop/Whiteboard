@@ -9,7 +9,13 @@ import { GrGroup } from "react-icons/gr";
 import { FiHelpCircle } from "react-icons/fi";
 import { TbHttpDelete } from "react-icons/tb";
 
-const Sidebar = ({ onOpenFile }) => {
+const Sidebar = ({
+  onOpenFile,
+  onSaveCanvas,
+  onExportImage,
+  onResetCanvas,
+  onShowHelp
+}) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -67,6 +73,58 @@ const Sidebar = ({ onOpenFile }) => {
     setOpen(false);
   };
 
+  // Handle Save to... - Auto download as PNG
+  const handleSave = async () => {
+    try {
+      if (onSaveCanvas) {
+        await onSaveCanvas();
+        console.log('Canvas saved successfully!');
+      }
+    } catch (error) {
+      console.error('Save failed:', error);
+      alert('Failed to save canvas. Please try again.');
+    }
+    setOpen(false);
+  };
+
+  // Handle Export image - Auto download as PNG
+  const handleExport = async () => {
+    try {
+      if (onExportImage) {
+        await onExportImage();
+        console.log('Image exported successfully!');
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export image. Please try again.');
+    }
+    setOpen(false);
+  };
+
+  // Handle Reset Canvas
+  const handleResetCanvas = () => {
+    if (confirm('Are you sure you want to reset the canvas? This will clear all content and cannot be undone.')) {
+      if (onResetCanvas) {
+        onResetCanvas();
+      }
+    }
+    setOpen(false);
+  };
+
+  // Handle Help
+  const handleHelp = () => {
+    if (onShowHelp) {
+      onShowHelp();
+    }
+    setOpen(false);
+  };
+
+  // Handle Live Collaboration (placeholder)
+  const handleLiveCollaboration = () => {
+    alert('Live collaboration feature coming soon!');
+    setOpen(false);
+  };
+
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -92,12 +150,35 @@ const Sidebar = ({ onOpenFile }) => {
       {open && (
         <div className="dropdown-menu">
           <ul>
-            <li onClick={handleOpen}><FaRegFolderOpen /><span>Open</span></li>
-            <li><MdOutlineSaveAlt /><span>Save to...</span></li>
-            <li><TiDownload /><span>Export image...</span></li>
-            <li><GrGroup /><span>Live collaboration...</span></li>
-            <li><FiHelpCircle /><span>Help</span></li>
-            <li><TbHttpDelete /><span>Reset the canvas</span></li>
+            <li onClick={handleOpen}>
+              <FaRegFolderOpen />
+              <span>Open</span>
+            </li>
+
+            <li onClick={handleSave}>
+              <MdOutlineSaveAlt />
+              <span>Save to...</span>
+            </li>
+
+            <li onClick={handleExport}>
+              <TiDownload />
+              <span>Export image...</span>
+            </li>
+
+            <li onClick={handleLiveCollaboration}>
+              <GrGroup />
+              <span>Live collaboration...</span>
+            </li>
+
+            <li onClick={handleHelp}>
+              <FiHelpCircle />
+              <span>Help</span>
+            </li>
+
+            <li onClick={handleResetCanvas} className="danger-item">
+              <TbHttpDelete />
+              <span>Reset the canvas</span>
+            </li>
           </ul>
         </div>
       )}

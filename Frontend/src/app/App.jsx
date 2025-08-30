@@ -31,7 +31,11 @@ function App() {
   const canvasCopyRef = useRef(null);
   const canvasClearRef = useRef(null);
   const canvasLoadRef = useRef(null);
-  const canvasAddImageRef = useRef(null); // Add this new ref for adding images
+  const canvasAddImageRef = useRef(null);
+
+  // NEW: Add save function references
+  const canvasSaveRef = useRef(null);
+  const canvasExportRef = useRef(null);
 
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
@@ -78,6 +82,52 @@ function App() {
     }
   };
 
+  // NEW: Handle save canvas from Sidebar
+  const handleSaveCanvas = async () => {
+    if (canvasSaveRef.current) {
+      try {
+        await canvasSaveRef.current();
+        console.log('Canvas saved successfully!');
+      } catch (error) {
+        console.error('Failed to save canvas:', error);
+        alert('Failed to save canvas. Please try again.');
+      }
+    } else {
+      alert('Save functionality not available yet. Please wait a moment.');
+    }
+  };
+
+  // NEW: Handle export image from Sidebar
+  const handleExportImage = async () => {
+    if (canvasExportRef.current) {
+      try {
+        await canvasExportRef.current();
+        console.log('Image exported successfully!');
+      } catch (error) {
+        console.error('Failed to export image:', error);
+        alert('Failed to export image. Please try again.');
+      }
+    } else {
+      alert('Export functionality not available yet. Please wait a moment.');
+    }
+  };
+
+  // NEW: Handle save functions from Canvas
+  const handleSaveFunctions = (functions) => {
+    canvasSaveRef.current = functions.saveCanvas;
+    canvasExportRef.current = functions.exportImage;
+  };
+
+  // Handle reset canvas from Sidebar
+  const handleResetCanvas = () => {
+    handleClearCanvas();
+  };
+
+  // Handle help from Sidebar
+  const handleShowHelp = () => {
+    alert('Help: Use the tools to draw, add text, or insert images. Use Ctrl+Z for undo and Ctrl+Y for redo. Click Save to download your work!');
+  };
+
   // Updated function to handle both canvas data and images
   const handleOpenFile = (fileData) => {
     if (fileData.type === 'canvas') {
@@ -116,7 +166,13 @@ function App() {
           />
         </header>
         <aside className="sidebar">
-          <Sidebar onOpenFile={handleOpenFile} />
+          <Sidebar
+            onOpenFile={handleOpenFile}
+            onSaveCanvas={handleSaveCanvas}
+            onExportImage={handleExportImage}
+            onResetCanvas={handleResetCanvas}
+            onShowHelp={handleShowHelp}
+          />
         </aside>
         <aside className="rightbar">
           <Rightbar />
@@ -155,6 +211,7 @@ function App() {
             onClearFunction={(clearFn) => { canvasClearRef.current = clearFn; }}
             onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
             onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
+            onSaveFunction={handleSaveFunctions}
           />
         </main>
         <footer className="bottom-controls">

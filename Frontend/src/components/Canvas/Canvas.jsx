@@ -29,7 +29,8 @@ export default function Canvas({
   onCopyFunction,
   onClearFunction,
   onLoadCanvasData,
-  onAddImageToCanvas
+  onAddImageToCanvas,
+  onSaveFunction // NEW: Add save function prop
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
@@ -163,6 +164,75 @@ export default function Canvas({
     events.handleCursorMove(e);
   }, [images, cursor, events]);
 
+  // NEW: Save canvas as PNG - Auto download function
+  const saveCanvasToPNG = useCallback(async (quality = 0.95) => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      throw new Error('Canvas not available');
+    }
+
+    try {
+      // Create a temporary canvas for saving
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+
+      // Fill with background color
+      tempCtx.fillStyle = canvasBackgroundColor;
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+      // Draw the main canvas content
+      tempCtx.drawImage(canvas, 0, 0);
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `whiteboard-${timestamp}.png`;
+
+      // Convert canvas to blob and download
+      return new Promise((resolve, reject) => {
+        tempCanvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Failed to create image blob'));
+            return;
+          }
+
+          try {
+            // Create download link
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+
+            // Trigger download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Clean up
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            console.log(`Canvas saved as ${filename}`);
+            resolve({ filename, size: blob.size });
+          } catch (error) {
+            reject(error);
+          }
+        }, 'image/png', quality);
+      });
+
+    } catch (error) {
+      console.error('Save canvas error:', error);
+      throw error;
+    }
+  }, [canvasBackgroundColor]);
+
+  // NEW: Export canvas as PNG - Same as save but different quality
+  const exportCanvasToPNG = useCallback(async (quality = 1.0) => {
+    return await saveCanvasToPNG(quality);
+  }, [saveCanvasToPNG]);
+
   // Clear all canvas content function
   const clearAllCanvas = useCallback(() => {
     console.log('Clearing entire canvas');
@@ -196,6 +266,16 @@ export default function Canvas({
       onClearFunction(clearAllCanvas);
     }
   }, [clearAllCanvas, onClearFunction]);
+
+  // NEW: Expose save functions to parent component
+  useEffect(() => {
+    if (onSaveFunction) {
+      onSaveFunction({
+        saveCanvas: saveCanvasToPNG,
+        exportImage: exportCanvasToPNG
+      });
+    }
+  }, [onSaveFunction, saveCanvasToPNG, exportCanvasToPNG]);
 
   // Load canvas data function
   const loadCanvasData = useCallback((canvasData) => {
