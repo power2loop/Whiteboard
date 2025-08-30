@@ -175,7 +175,7 @@ const Sidebar = ({
               <span>Help</span>
             </li>
 
-            <li onClick={handleResetCanvas} className="danger-item">
+            <li onClick={handleResetCanvas} className="danger-item" style={{color:"red", fontWeight:400}}>
               <TbHttpDelete />
               <span>Reset the canvas</span>
             </li>
