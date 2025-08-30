@@ -32,7 +32,7 @@
     position: absolute;
     top: 100%;
     /* appear directly below button */
-    left: 20;
+    left: 20px;
     /* align with button's right edge */
     margin-top: 8px;
     width: 220px;
