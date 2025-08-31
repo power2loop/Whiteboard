@@ -31,15 +31,29 @@ export default function Canvas({
   onLoadCanvasData,
   onAddImageToCanvas,
   onSaveFunction,
+
   // NEW: Socket.IO props
   socket,
   roomId,
   userColor = "#000000"
+  // Collaboration props
+  onShapesChange,
+  onDrawingStart,
+  onDrawingUpdate,
+  onDrawingEnd,
+  onCanvasClearCollaboration,
+  onCursorMove,
+  isCollaborating = false
+
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
   const [shapes, setShapes] = useState([]);
+
   const [remoteCursors, setRemoteCursors] = useState(new Map());
+
+  const [isReceivingUpdate, setIsReceivingUpdate] = useState(false);
+
 
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -60,14 +74,21 @@ export default function Canvas({
     onCanRedo
   );
 
-  const drawing = useCanvasDrawing(
-    selectedTool,
-    selectedColor,
-    strokeWidth,
-    strokeStyle,
-    backgroundColor,
-    opacity
-  );
+  // In Canvas.jsx, update the drawing hook initialization:
+const drawing = useCanvasDrawing(
+  selectedTool,
+  selectedColor,
+  strokeWidth,
+  strokeStyle,
+  backgroundColor,
+  opacity,
+  // Add collaboration callbacks
+  onDrawingStart,
+  onDrawingUpdate,
+  onDrawingEnd,
+  isCollaborating
+);
+
 
   const selection = useCanvasSelection(shapes);
   const eraser = useCanvasEraser(shapes, setShapes, saveToHistory);
@@ -226,6 +247,29 @@ export default function Canvas({
   }, [socket, roomId]);
 
   // ==================== MODIFIED FUNCTIONS ====================
+  // Enhanced shapes update function for collaboration
+// Replace the updateShapesWithCollaboration function in Canvas.jsx with this:
+
+const updateShapesWithCollaboration = useCallback((newShapes, skipEmit = false) => {
+  if (isReceivingUpdate) return;
+  
+  console.log('🔄 Updating shapes:', newShapes.length, 'skipEmit:', skipEmit);
+  setShapes(newShapes);
+  
+  // Emit to collaborators if this is a local change
+  if (isCollaborating && !skipEmit && onShapesChange) {
+    console.log('📤 Emitting shapes change to collaborators');
+    onShapesChange(newShapes);
+  }
+}, [isCollaborating, onShapesChange, isReceivingUpdate]);
+
+
+  // Function to handle incoming collaboration updates
+  const handleCollaborationUpdate = useCallback((collaborationShapes) => {
+    setIsReceivingUpdate(true);
+    setShapes(collaborationShapes);
+    setTimeout(() => setIsReceivingUpdate(false), 100);
+  }, []);
 
   // Function to check if a point is inside an element
   const isPointInElement = useCallback((point, shape) => {
@@ -264,7 +308,7 @@ export default function Canvas({
     }
   }, []);
 
-  // DECLARE events FIRST - before any callbacks that use it
+  // Enhanced events with collaboration
   const events = useCanvasEvents(
     canvasRef,
     selectedTool,
@@ -276,7 +320,7 @@ export default function Canvas({
     onToolChange,
     isPointInElement,
     saveToHistory,
-    setShapes,
+    updateShapesWithCollaboration, // Use collaboration-aware setter
     setTextInput,
     images.setImageToPlace,
     images.imageToPlace,
@@ -287,21 +331,47 @@ export default function Canvas({
     images.handlePasteFromClipboard,
     images.setLoadedImages,
     cursor,
+
     broadcastDrawing // Pass broadcast function
+
+    // Collaboration callbacks
+    onDrawingStart,
+    onDrawingUpdate,
+    onDrawingEnd,
+    onCursorMove,
+    isCollaborating
+
   );
 
-  // Enhanced mouse down handler that includes image placement
+  // Enhanced mouse down handler with collaboration
   const handleEnhancedMouseDown = useCallback((e) => {
     // First check if we're placing an image
     if (images.handleImagePlacement(e)) {
       return; // Image was placed, don't continue with other mouse handling
     }
 
+    // Emit drawing start for collaboration
+    if (isCollaborating && onDrawingStart && drawing.isDrawingTool()) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const point = {
+        x: e.clientX - rect.left - panning.panOffset.x,
+        y: e.clientY - rect.top - panning.panOffset.y
+      };
+      onDrawingStart({
+        tool: selectedTool,
+        point,
+        color: selectedColor,
+        strokeWidth,
+        opacity
+      });
+    }
+
     // Otherwise, use normal mouse down handling
     events.handleMouseDown(e);
-  }, [images.handleImagePlacement, events]);
+  }, [images.handleImagePlacement, events, isCollaborating, onDrawingStart, drawing, selectedTool, selectedColor, strokeWidth, opacity, panning.panOffset]);
 
   // Handle mouse move with image preview and cursor broadcasting
+  // Handle mouse move with collaboration
   const handleMouseMoveWithPreview = useCallback((e) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
@@ -316,6 +386,14 @@ export default function Canvas({
     }
 
     images.handleMouseMoveWithPreview(e);
+    
+    // Emit cursor position for collaboration
+    if (isCollaborating && onCursorMove) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left - panning.panOffset.x;
+      const y = e.clientY - rect.top - panning.panOffset.y;
+      onCursorMove(x, y);
+    }
 
     // Continue with normal mouse move handling
     cursor.updateMousePosition(e);
@@ -323,6 +401,22 @@ export default function Canvas({
   }, [images, cursor, events, broadcastCursor]);
 
   // Enhanced save canvas to include broadcasting
+  }, [images, cursor, events, isCollaborating, onCursorMove, panning.panOffset]);
+
+  // Enhanced mouse up handler with collaboration
+  const handleMouseUp = useCallback((e) => {
+    // Emit drawing end for collaboration
+    if (isCollaborating && onDrawingEnd && drawing.isDrawing) {
+      onDrawingEnd({
+        tool: selectedTool,
+        shapes: shapes
+      });
+    }
+
+    events.handleMouseUp(e);
+  }, [events, isCollaborating, onDrawingEnd, drawing.isDrawing, selectedTool, shapes]);
+
+  // Save canvas as PNG function
   const saveCanvasToPNG = useCallback(async (quality = 0.95) => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -332,7 +426,6 @@ export default function Canvas({
     try {
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
-
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
 
@@ -361,16 +454,17 @@ export default function Canvas({
             a.click();
             document.body.removeChild(a);
 
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-
             console.log(`Canvas saved as ${filename}`);
             resolve({ filename, size: blob.size });
-          } catch (error) {
+          }catch (error) {
             reject(error);
           }
         }, 'image/png', quality);
       });
-
     } catch (error) {
       console.error('Save canvas error:', error);
       throw error;
@@ -382,20 +476,25 @@ export default function Canvas({
   }, [saveCanvasToPNG]);
 
   // Enhanced clear function with broadcasting
+  // Enhanced clear function with collaboration
   const clearAllCanvas = useCallback(() => {
     console.log('Clearing entire canvas');
     console.log('Elements before clear:', shapes.length);
-
+    
     if (shapes.length > 0) {
       saveToHistory(shapes);
-      setShapes([]);
-
+      updateShapesWithCollaboration([]);
+      
+      // Emit canvas clear for collaboration
+      if (isCollaborating && onCanvasClearCollaboration) {
+        onCanvasClearCollaboration();
+      }
+      
       drawing.resetDrawing();
       selection.resetSelection();
       eraser.resetEraser();
       panning.resetPan();
       images.resetImageStates();
-
       setTextInput({
         show: false,
         x: 0,
@@ -435,6 +534,15 @@ export default function Canvas({
     if (canvasData && canvasData.shapes) {
       console.log('Loading canvas data:', canvasData);
 
+      console.log('Canvas cleared successfully');
+    }
+  }, [shapes, saveToHistory, updateShapesWithCollaboration, isCollaborating, onCanvasClearCollaboration, drawing, selection, eraser, panning, images]);
+
+  // Load canvas data function with collaboration support
+  const loadCanvasData = useCallback((canvasData) => {
+    if (canvasData && canvasData.shapes) {
+      console.log('Loading canvas data:', canvasData);
+      
       if (shapes.length > 0) {
         saveToHistory(shapes);
       }
@@ -442,10 +550,14 @@ export default function Canvas({
       setShapes(canvasData.shapes);
       images.loadImagesFromCanvasData(canvasData);
 
+      // Use collaboration-aware update, but skip emit since this is incoming data
+      handleCollaborationUpdate(canvasData.shapes);
+      
+      images.loadImagesFromCanvasData(canvasData);
+
       drawing.resetDrawing();
       selection.resetSelection();
       eraser.resetEraser();
-
       setTextInput({
         show: false,
         x: 0,
@@ -453,34 +565,12 @@ export default function Canvas({
         value: "",
         fontSize: 16
       });
-
       images.setImageToPlace(null);
       images.setImagePreview(null);
       images.setMousePosition({ x: 0, y: 0 });
-
       console.log('Canvas data loaded successfully');
     }
-  }, [shapes, saveToHistory, drawing, selection, eraser, images]);
-
-  // Expose load function to parent component
-  useEffect(() => {
-    if (onLoadCanvasData) {
-      onLoadCanvasData(loadCanvasData);
-    }
-  }, [loadCanvasData, onLoadCanvasData]);
-
-  // Expose addImage function to parent component
-  useEffect(() => {
-    if (onAddImageToCanvas) {
-      onAddImageToCanvas(images.addImageToCanvas);
-    }
-  }, [images.addImageToCanvas, onAddImageToCanvas]);
-
-  // Handle ESC key to cancel image preview
-  useEffect(() => {
-    document.addEventListener('keydown', images.handleEscapeKey);
-    return () => document.removeEventListener('keydown', images.handleEscapeKey);
-  }, [images.handleEscapeKey]);
+  }, [shapes, saveToHistory, handleCollaborationUpdate, images, drawing, selection, eraser]);
 
   // Copy canvas to clipboard function
   const copyCanvasToClipboard = useCallback(async () => {
@@ -492,10 +582,8 @@ export default function Canvas({
     try {
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
-
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
-
       tempCtx.fillStyle = canvasBackgroundColor;
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       tempCtx.drawImage(canvas, 0, 0);
@@ -541,20 +629,52 @@ export default function Canvas({
           }
         }, 'image/png', 0.95);
       });
-
     } catch (error) {
       console.error('Copy canvas error:', error);
       throw error;
     }
   }, [canvasBackgroundColor]);
 
-  // Expose copy function to parent component
+  // Expose functions to parent components
+  useEffect(() => {
+    if (onClearFunction) {
+      onClearFunction(clearAllCanvas);
+    }
+  }, [clearAllCanvas, onClearFunction]);
+
+  useEffect(() => {
+    if (onSaveFunction) {
+      onSaveFunction({
+        saveCanvas: saveCanvasToPNG,
+        exportImage: exportCanvasToPNG
+      });
+    }
+  }, [onSaveFunction, saveCanvasToPNG, exportCanvasToPNG]);
+
+  useEffect(() => {
+    if (onLoadCanvasData) {
+      onLoadCanvasData(loadCanvasData);
+    }
+  }, [loadCanvasData, onLoadCanvasData]);
+
+  useEffect(() => {
+    if (onAddImageToCanvas) {
+      onAddImageToCanvas(images.addImageToCanvas);
+    }
+  }, [images.addImageToCanvas, onAddImageToCanvas]);
+
   useEffect(() => {
     if (onCopyFunction) {
       onCopyFunction(copyCanvasToClipboard);
     }
   }, [copyCanvasToClipboard, onCopyFunction]);
 
+  useEffect(() => {
+    document.addEventListener('keydown', images.handleEscapeKey);
+    return () => document.removeEventListener('keydown', images.handleEscapeKey);
+  }, [images.handleEscapeKey]);
+
+  // Canvas rendering effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -568,7 +688,6 @@ export default function Canvas({
       canvas.height = window.innerHeight;
     }
 
-    // Use the renderer hook's redraw function with canvas background color
     renderer.redraw(
       canvasRef,
       shapes,
@@ -624,6 +743,7 @@ export default function Canvas({
       saveToHistory(shapes);
       const newTextShape = {
         id: Date.now() + Math.random(),
+      const newShape = {
         tool: "text",
         text: textInput.value,
         x: textInput.x,
@@ -638,7 +758,9 @@ export default function Canvas({
 
       // Broadcast text to other users
       broadcastDrawing(newTextShape);
+      updateShapesWithCollaboration([...shapes, newShape]);
     }
+
     setTextInput({
       show: false,
       x: 0,
@@ -674,13 +796,11 @@ export default function Canvas({
   function isPointInShape(shape, point) {
     const { start, end, tool } = shape;
     const distance = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-
     const pointInRect = (point, start, end) => {
       const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
       const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
       return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
     };
-
     const pointInDiamond = (point, start, end) => {
       const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
       const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
@@ -688,7 +808,6 @@ export default function Canvas({
       if (w === 0 || h === 0) return false;
       return dx / w + dy / h <= 1;
     };
-
     const pointNearLine = (point, start, end, threshold) => {
       const A = point.x - start.x, B = point.y - start.y;
       const C = end.x - start.x, D = end.y - start.y;
@@ -736,7 +855,7 @@ export default function Canvas({
         className="drawing-canvas"
         onMouseDown={handleEnhancedMouseDown}
         onMouseMove={handleMouseMoveWithPreview}
-        onMouseUp={events.handleMouseUp}
+        onMouseUp={handleMouseUp}
         onMouseEnter={cursor.handleMouseEnter}
         onMouseLeave={(e) => {
           cursor.handleMouseLeave();
@@ -809,84 +928,86 @@ export default function Canvas({
       ))}
 
       {/* Render only eraser and image cursors */}
+      {/* Render custom cursors */}
       {eraserCursor && (
         <div
-          className="eraser-cursor-pulse"
           style={eraserCursor.style}
+          className="custom-cursor eraser-cursor"
         />
       )}
 
       {imageCursor && (
         <div
-          className="image-placement-cursor"
           style={imageCursor.style}
+          className="custom-cursor image-cursor"
         />
       )}
 
       {/* Image preview that follows mouse */}
       {images.imagePreview && (
         <div
+          className="image-preview"
           style={{
             position: 'absolute',
-            left: images.mousePosition.x + panning.panOffset.x - images.imagePreview.width / 2,
-            top: images.mousePosition.y + panning.panOffset.y - images.imagePreview.height / 2,
+            left: images.mousePosition.x,
+            top: images.mousePosition.y,
             width: images.imagePreview.width,
             height: images.imagePreview.height,
-            border: '2px dashed #4f46e5',
-            borderRadius: '4px',
-            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+            border: '2px dashed #3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
             pointerEvents: 'none',
             zIndex: 1000,
+            transform: 'translate(-50%, -50%)',
+            borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: '12px',
-            color: '#4f46e5',
-            fontWeight: '500'
+            color: '#3b82f6'
           }}
         >
           📷 {images.imagePreview.name}
         </div>
       )}
 
+      {/* Text input */}
       {textInput.show && (
         <textarea
           ref={textAreaRef}
-          value={textInput.value}
-          onChange={handleTextChange}
-          onKeyDown={handleTextKeyDown}
-          onBlur={handleTextSubmit}
           className="whiteboard-text-input"
           style={{
             position: 'absolute',
             left: textInput.x + panning.panOffset.x,
-            top: textInput.y + panning.panOffset.y - 10,
-            zIndex: 1000,
-            width: '300px',
-            minWidth: '200px',
-            height: '100px',
-            minHeight: '60px',
+            top: textInput.y + panning.panOffset.y,
             fontSize: `${textInput.fontSize}px`,
-            fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-            fontWeight: 400,
-            lineHeight: 1.4,
-            color: selectedColor || '#1a1a1a',
-            background: '#ffffff7f',
-            border: '2px solid #e5e7eb',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            fontFamily: 'Arial',
+            color: selectedColor,
+            background: 'transparent',
+            border: '1px dashed #ccc',
             outline: 'none',
-            padding: '12px 16px',
-            resize: 'both',
-            transition: 'all 0.005s ease-in-out'
+            resize: 'none',
+            padding: '2px',
+            minWidth: '100px',
+            minHeight: '20px',
+            zIndex: 1000
           }}
-          placeholder="Enter your text here..."
-          aria-label="Text input for whiteboard"
-          spellCheck="true"
-          autoComplete="off"
-          rows={3}
+          value={textInput.value}
+          onChange={handleTextChange}
+          onKeyDown={handleTextKeyDown}
+          onBlur={handleTextSubmit}
+          placeholder="Type here..."
+          autoFocus
         />
       )}
+
+      {/* Hidden file input for images */}
+      <input
+        ref={images.fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={images.handleFileSelect}
+      />
     </>
   );
 }
