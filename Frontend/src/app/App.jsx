@@ -4,10 +4,17 @@ import Canvas from '../components/Canvas/Canvas';
 import BottomControls from '../components/BottomControls/BottomControls';
 import Topbar from '../components/Topbar/Topbar';
 import Rightbar from '../components/Rightbar/Rightbar';
+import socketService from '../services/socket/socket.service.js';
 import "./App.css";
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 function App() {
+
+  // Add these state variables inside your App component
+  const [isCollaborating, setIsCollaborating] = useState(false);
+  const [collaborators, setCollaborators] = useState([]);
+  const [currentBoardId, setCurrentBoardId] = useState(null);
+
   const [selectedTool, setSelectedTool] = useState("hand");
   const [selectedColor, setSelectedColor] = useState("#000000");
   const [showToolbar, setShowToolbar] = useState(false);
@@ -36,6 +43,69 @@ function App() {
   // NEW: Add save function references
   const canvasSaveRef = useRef(null);
   const canvasExportRef = useRef(null);
+
+  // Add collaboration handler
+  const handleStartCollaboration = useCallback((boardId, userId, userName) => {
+    console.log('🚀 Starting collaboration:', { boardId, userId, userName });
+
+    // Connect to socket
+    socketService.connect();
+
+    // Wait a bit for connection then join room
+    setTimeout(() => {
+      if (socketService.joinRoom(boardId, userId, userName)) {
+        setIsCollaborating(true);
+        setCurrentBoardId(boardId);
+
+        // Set up socket event listeners
+        socketService.onBoardState((data) => {
+          console.log('📊 Received board state:', data);
+          if (canvasLoadRef.current && data.shapes) {
+            canvasLoadRef.current({ shapes: data.shapes });
+          }
+          setCollaborators(data.collaborators || []);
+        });
+
+        socketService.onUserJoined((data) => {
+          console.log('👋 User joined:', data.user.name);
+          setCollaborators(data.collaborators);
+        });
+
+        socketService.onUserLeft((data) => {
+          console.log('👋 User left:', data.user.name);
+          setCollaborators(data.collaborators);
+        });
+
+        socketService.onShapesUpdate((data) => {
+          console.log('🎨 Shapes updated by:', data.updatedBy);
+          if (canvasLoadRef.current) {
+            canvasLoadRef.current({ shapes: data.shapes });
+          }
+        });
+
+        socketService.onCanvasClear(() => {
+          console.log('🧹 Canvas cleared by collaborator');
+          if (canvasClearRef.current) {
+            canvasClearRef.current();
+          }
+        });
+      }
+    }, 1000);
+  }, []);
+
+  // Update your Canvas component props to include collaboration callbacks
+  const canvasCollaborationProps = {
+    onShapesChange: (shapes) => {
+      if (isCollaborating) {
+        socketService.emitShapesUpdate(shapes);
+      }
+    },
+    onCanvasClear: () => {
+      if (isCollaborating) {
+        socketService.emitCanvasClear();
+      }
+    }
+  };
 
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
@@ -175,7 +245,9 @@ function App() {
           />
         </aside>
         <aside className="rightbar">
-          <Rightbar />
+          <Rightbar onStartCollaboration={handleStartCollaboration}
+            isCollaborating={isCollaborating}
+            collaborators={collaborators} />
         </aside>
         {showToolbar && (
           <Toolbar
@@ -212,6 +284,15 @@ function App() {
             onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
             onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
             onSaveFunction={handleSaveFunctions}
+
+            //collab props
+            onShapesChange={socketService.emitShapesUpdate}
+            onDrawingStart={(data) => socketService.emitDrawingStart(data)}
+            onDrawingUpdate={(data) => socketService.emitDrawingUpdate(data)}
+            onDrawingEnd={(data) => socketService.emitDrawingEnd(data)}
+            onCanvasClearCollaboration={socketService.emitCanvasClear}
+            onCursorMove={socketService.emitCursorMove}
+            isCollaborating={isCollaborating}
           />
         </main>
         <footer className="bottom-controls">
