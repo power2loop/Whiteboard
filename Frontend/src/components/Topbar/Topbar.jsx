@@ -10,7 +10,6 @@ import { IoImageOutline } from "react-icons/io5";
 import { LuRectangleHorizontal } from "react-icons/lu";
 import { LuDiamond } from "react-icons/lu";
 import { ImMagicWand } from "react-icons/im";
-import { HiOutlineCursorClick } from "react-icons/hi";
 import "./Topbar.css";
 
 export default function Topbar({ onToolSelect, selectedColor, onColorSelect }) {
@@ -30,7 +29,7 @@ export default function Topbar({ onToolSelect, selectedColor, onColorSelect }) {
           onClick={() => handleSelect("hand")}
           title="Select and move objects"
         >
-          <HiOutlineCursorClick />
+          <FaRegHandPaper />
         </button>
         <div className="vertical-divider" />
 
