@@ -308,14 +308,6 @@
 
 
 /* Share button styles */
-.btn-share {
-  position: relative;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  margin-bottom: 12px;
-  transition: all 0.2s ease;
-}
 
 .btn-share:hover:not(:disabled) {
   background: #2563eb;

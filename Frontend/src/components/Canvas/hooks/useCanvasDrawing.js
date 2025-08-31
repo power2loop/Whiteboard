@@ -2,7 +2,19 @@ import { useState, useCallback } from 'react';
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
 
-export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity) {
+export default function useCanvasDrawing(
+  selectedTool, 
+  selectedColor, 
+  strokeWidth, 
+  strokeStyle, 
+  backgroundColor, 
+  opacity,
+  // Add collaboration callbacks
+  onDrawingStart,
+  onDrawingUpdate, 
+  onDrawingEnd,
+  isCollaborating = false
+) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [penPoints, setPenPoints] = useState([]);
   const [laserPoints, setLaserPoints] = useState([]);
@@ -11,7 +23,21 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
 
   // Start drawing for any tool
   const startDrawing = useCallback((point) => {
+    console.log('🎨 Starting drawing:', selectedTool, point);
     setIsDrawing(true);
+    
+    // Emit drawing start for collaboration FIRST
+    if (isCollaborating && onDrawingStart) {
+      console.log('📤 Calling onDrawingStart callback');
+      onDrawingStart({
+        tool: selectedTool,
+        point,
+        color: selectedColor,
+        strokeWidth,
+        opacity: opacity / 100
+      });
+    }
+    
     if (selectedTool === "pen") {
       setPenPoints([point]);
     } else if (selectedTool === "laser") {
@@ -20,29 +46,62 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
       setStartPoint(point);
       setCurrentPoint(point);
     }
-  }, [selectedTool]);
+  }, [selectedTool, isCollaborating, onDrawingStart, selectedColor, strokeWidth, opacity]);
 
   // Update drawing while mouse is moving
   const updateDrawing = useCallback((point) => {
     if (!isDrawing) return;
     
     if (selectedTool === "pen") {
-      setPenPoints(ps => [...ps, point]);
+      setPenPoints(ps => {
+        const newPoints = [...ps, point];
+        // Emit drawing update for collaboration
+        if (isCollaborating && onDrawingUpdate) {
+          onDrawingUpdate({
+            tool: selectedTool,
+            point,
+            points: newPoints
+          });
+        }
+        return newPoints;
+      });
     } else if (selectedTool === "laser") {
-      setLaserPoints(ls => [...ls, point]);
+      setLaserPoints(ls => {
+        const newPoints = [...ls, point];
+        // Emit drawing update for collaboration
+        if (isCollaborating && onDrawingUpdate) {
+          onDrawingUpdate({
+            tool: selectedTool,
+            point,
+            points: newPoints
+          });
+        }
+        return newPoints;
+      });
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
       setCurrentPoint(point);
+      // Emit drawing update for collaboration
+      if (isCollaborating && onDrawingUpdate) {
+        onDrawingUpdate({
+          tool: selectedTool,
+          startPoint,
+          currentPoint: point
+        });
+      }
     }
-  }, [isDrawing, selectedTool]);
+  }, [isDrawing, selectedTool, startPoint, isCollaborating, onDrawingUpdate]);
 
   // Finish drawing and create shape
   const finishDrawing = useCallback((setShapes) => {
     if (!isDrawing) return;
 
+    console.log('🎨 Finishing drawing:', selectedTool);
     setIsDrawing(false);
 
+    let newShape = null;
+
     if (selectedTool === "pen" && penPoints.length > 0) {
-      const newShape = {
+      newShape = {
         tool: "pen",
         points: penPoints,
         color: selectedColor,
@@ -60,7 +119,7 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
       setPenPoints([]);
       
     } else if (selectedTool === "laser" && laserPoints.length > 1) {
-      const newShape = {
+      newShape = {
         tool: "laser",
         points: laserPoints,
         opacity: opacity / 100,
@@ -79,7 +138,7 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
       setLaserPoints([]);
       
     } else if (SHAPE_TOOLS.includes(selectedTool) && startPoint && currentPoint) {
-      const newShape = {
+      newShape = {
         tool: selectedTool,
         start: startPoint,
         end: currentPoint,
@@ -98,17 +157,24 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
       });
     }
 
+    // Emit drawing end for collaboration
+    if (isCollaborating && onDrawingEnd && newShape) {
+      console.log('📤 Calling onDrawingEnd callback');
+      onDrawingEnd({
+        tool: selectedTool,
+        shape: newShape
+      });
+    }
+
     // Reset drawing states
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, selectedTool, penPoints, laserPoints, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity]);
+  }, [isDrawing, selectedTool, penPoints, laserPoints, startPoint, currentPoint, selectedColor, strokeWidth, strokeStyle, backgroundColor, opacity, isCollaborating, onDrawingEnd]);
 
-  // Check if current tool is a drawing tool
   const isDrawingTool = useCallback(() => {
     return selectedTool === "pen" || selectedTool === "laser" || SHAPE_TOOLS.includes(selectedTool);
   }, [selectedTool]);
 
-  // Reset all drawing states (useful for tool changes)
   const resetDrawing = useCallback(() => {
     setIsDrawing(false);
     setPenPoints([]);
@@ -118,13 +184,11 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
   }, []);
 
   return {
-    // States
     isDrawing,
     penPoints,
     laserPoints,
     startPoint,
     currentPoint,
-    // Functions
     startDrawing,
     updateDrawing,
     finishDrawing,

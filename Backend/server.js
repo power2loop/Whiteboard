@@ -8,38 +8,38 @@ import { initializeWhiteboardSocket } from "./src/sockets/whiteboard.socket.js";
 const app = express();
 const server = createServer(app);
 
-const Frontend_url = "http://localhost:5173";
-const PORT = 3000;
-
-// Configure Socket.IO with CORS
+// **IMPORTANT**: Fix the CORS configuration
 const io = new Server(server, {
   cors: {
-    origin: [{Frontend_url}], // Add your frontend URLs
+    origin: ["http://localhost:5173", "http://localhost:3000"], // Your frontend URL
     methods: ["GET", "POST"],
+    allowedHeaders: ["*"],
     credentials: true
-  }
+  },
+  allowEIO3: true, // Allow Engine.IO v3 clients
+  transports: ['websocket', 'polling']
 });
 
-// Middleware
-app.use(cors({
-  origin: [{Frontend_url}],
-  credentials: true
-}));
-app.use(express.json());
+const PORT = 3000;
 
-// Routes
+// Express CORS middleware
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:3000"],
+  credentials: true,
+  allowedHeaders: ["*"]
+}));
+
+app.use(express.json());
 app.use("/api/boards", boardsRoutes);
 
-// Basic route
 app.get("/", (req, res) => {
   res.send("🚀 Collaborative Whiteboard Server is running!");
 });
 
-// Initialize Socket.IO for whiteboard
+// Initialize Socket.IO
 initializeWhiteboardSocket(io);
 
-// Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📡 Socket.IO server ready for connections`);
 });

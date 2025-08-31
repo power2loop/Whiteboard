@@ -64,14 +64,21 @@ export default function Canvas({
     onCanRedo
   );
 
-  const drawing = useCanvasDrawing(
-    selectedTool,
-    selectedColor,
-    strokeWidth,
-    strokeStyle,
-    backgroundColor,
-    opacity
-  );
+  // In Canvas.jsx, update the drawing hook initialization:
+const drawing = useCanvasDrawing(
+  selectedTool,
+  selectedColor,
+  strokeWidth,
+  strokeStyle,
+  backgroundColor,
+  opacity,
+  // Add collaboration callbacks
+  onDrawingStart,
+  onDrawingUpdate,
+  onDrawingEnd,
+  isCollaborating
+);
+
 
   const selection = useCanvasSelection(shapes);
   const eraser = useCanvasEraser(shapes, setShapes, saveToHistory);
@@ -92,16 +99,21 @@ export default function Canvas({
   const cursor = useCursor(selectedTool, panning.panOffset, images.imageToPlace, ERASER_RADIUS);
 
   // Enhanced shapes update function for collaboration
-  const updateShapesWithCollaboration = useCallback((newShapes, skipEmit = false) => {
-    if (isReceivingUpdate) return;
-    
-    setShapes(newShapes);
-    
-    // Emit to collaborators if this is a local change
-    if (isCollaborating && !skipEmit && onShapesChange) {
-      onShapesChange(newShapes);
-    }
-  }, [isCollaborating, onShapesChange, isReceivingUpdate]);
+// Replace the updateShapesWithCollaboration function in Canvas.jsx with this:
+
+const updateShapesWithCollaboration = useCallback((newShapes, skipEmit = false) => {
+  if (isReceivingUpdate) return;
+  
+  console.log('🔄 Updating shapes:', newShapes.length, 'skipEmit:', skipEmit);
+  setShapes(newShapes);
+  
+  // Emit to collaborators if this is a local change
+  if (isCollaborating && !skipEmit && onShapesChange) {
+    console.log('📤 Emitting shapes change to collaborators');
+    onShapesChange(newShapes);
+  }
+}, [isCollaborating, onShapesChange, isReceivingUpdate]);
+
 
   // Function to handle incoming collaboration updates
   const handleCollaborationUpdate = useCallback((collaborationShapes) => {

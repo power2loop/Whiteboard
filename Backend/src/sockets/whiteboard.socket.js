@@ -14,8 +14,6 @@ const EVENTS = {
   
   // Shape events
   SHAPES_UPDATE: 'shapes_update',
-  SHAPE_ADDED: 'shape_added',
-  SHAPE_DELETED: 'shape_deleted',
   
   // Cursor events
   CURSOR_MOVE: 'cursor_move',
@@ -23,21 +21,16 @@ const EVENTS = {
   
   // Canvas events
   CANVAS_CLEAR: 'canvas_clear',
-  CANVAS_UNDO: 'canvas_undo',
-  CANVAS_REDO: 'canvas_redo',
-  
-  // Collaboration events
-  COLLABORATORS_UPDATE: 'collaborators_update',
-  TOOL_CHANGE: 'tool_change',
   
   // Error events
-  ERROR: 'error',
-  CONNECTION_ERROR: 'connection_error'
+  ERROR: 'error'
 };
 
 export function initializeWhiteboardSocket(io) {
+  console.log('🚀 Initializing whiteboard socket handlers');
+  
   io.on('connection', (socket) => {
-    console.log(`Socket connected: ${socket.id}`);
+    console.log(`✅ Socket connected: ${socket.id}`);
     
     let currentRoom = null;
     let currentUser = null;
@@ -46,6 +39,7 @@ export function initializeWhiteboardSocket(io) {
     socket.on(EVENTS.JOIN_ROOM, async (data) => {
       try {
         const { boardId, userId, userName } = data;
+        console.log(`👤 User ${userName} trying to join room ${boardId}`);
         
         // Validate input
         if (!boardId || !userId || !userName) {
@@ -73,11 +67,10 @@ export function initializeWhiteboardSocket(io) {
 
         // Add collaborator to board
         boardsService.addCollaborator(boardId, userId, userName, socket.id);
-        boardsService.setRoomActive(boardId, socket.id);
 
         // Send current board state to joining user
         socket.emit('board_state', {
-          shapes: board.shapes,
+          shapes: board.shapes || [],
           collaborators: boardsService.getBoardCollaborators(boardId)
         });
 
@@ -87,18 +80,19 @@ export function initializeWhiteboardSocket(io) {
           collaborators: boardsService.getBoardCollaborators(boardId)
         });
 
-        console.log(`User ${userName} joined room ${boardId}`);
+        console.log(`✅ User ${userName} joined room ${boardId}`);
 
       } catch (error) {
-        console.error('Join room error:', error);
+        console.error('❌ Join room error:', error);
         socket.emit(EVENTS.ERROR, { message: 'Failed to join room' });
       }
     });
 
     // Handle drawing start
     socket.on(EVENTS.DRAWING_START, (data) => {
-      if (!currentRoom) return;
+      if (!currentRoom || !currentUser) return;
       
+      console.log(`🎨 Drawing started by ${currentUser.name}:`, data.tool);
       socket.to(currentRoom).emit(EVENTS.DRAWING_START, {
         userId: currentUser.id,
         userName: currentUser.name,
@@ -108,7 +102,7 @@ export function initializeWhiteboardSocket(io) {
 
     // Handle drawing updates
     socket.on(EVENTS.DRAWING_UPDATE, (data) => {
-      if (!currentRoom) return;
+      if (!currentRoom || !currentUser) return;
       
       socket.to(currentRoom).emit(EVENTS.DRAWING_UPDATE, {
         userId: currentUser.id,
@@ -119,8 +113,9 @@ export function initializeWhiteboardSocket(io) {
 
     // Handle drawing end
     socket.on(EVENTS.DRAWING_END, (data) => {
-      if (!currentRoom) return;
+      if (!currentRoom || !currentUser) return;
       
+      console.log(`🎨 Drawing ended by ${currentUser.name}:`, data.tool);
       socket.to(currentRoom).emit(EVENTS.DRAWING_END, {
         userId: currentUser.id,
         userName: currentUser.name,
@@ -128,11 +123,24 @@ export function initializeWhiteboardSocket(io) {
       });
     });
 
-    // Handle shapes update (complete state sync)
+    // Handle shapes update (FIXED)
     socket.on(EVENTS.SHAPES_UPDATE, (data) => {
-      if (!currentRoom) return;
+      if (!currentRoom || !currentUser) return;
       
+      // Fix: Check if data and shapes exist before accessing length
+      if (!data || typeof data !== 'object') {
+        console.error('❌ Invalid data received for shapes update:', data);
+        return;
+      }
+
       const { shapes } = data;
+      
+      if (!shapes || !Array.isArray(shapes)) {
+        console.error('❌ Invalid shapes data received. Expected array, got:', typeof shapes);
+        return;
+      }
+      
+      console.log(`📊 Shapes updated by ${currentUser.name}, count:`, shapes.length);
       
       // Update board state
       boardsService.updateBoardShapes(currentRoom, shapes);
@@ -141,17 +149,6 @@ export function initializeWhiteboardSocket(io) {
       socket.to(currentRoom).emit(EVENTS.SHAPES_UPDATE, {
         shapes,
         updatedBy: currentUser.name
-      });
-    });
-
-    // Handle individual shape added
-    socket.on(EVENTS.SHAPE_ADDED, (data) => {
-      if (!currentRoom) return;
-      
-      socket.to(currentRoom).emit(EVENTS.SHAPE_ADDED, {
-        shape: data.shape,
-        userId: currentUser.id,
-        userName: currentUser.name
       });
     });
 
@@ -174,7 +171,9 @@ export function initializeWhiteboardSocket(io) {
 
     // Handle canvas clear
     socket.on(EVENTS.CANVAS_CLEAR, () => {
-      if (!currentRoom) return;
+      if (!currentRoom || !currentUser) return;
+      
+      console.log(`🧹 Canvas cleared by ${currentUser.name}`);
       
       // Update board state
       boardsService.updateBoardShapes(currentRoom, []);
@@ -185,20 +184,9 @@ export function initializeWhiteboardSocket(io) {
       });
     });
 
-    // Handle tool change broadcast
-    socket.on(EVENTS.TOOL_CHANGE, (data) => {
-      if (!currentRoom) return;
-      
-      socket.to(currentRoom).emit(EVENTS.TOOL_CHANGE, {
-        userId: currentUser.id,
-        userName: currentUser.name,
-        tool: data.tool
-      });
-    });
-
     // Handle disconnect
     socket.on('disconnect', () => {
-      console.log(`Socket disconnected: ${socket.id}`);
+      console.log(`❌ Socket disconnected: ${socket.id}`);
       
       if (currentRoom && currentUser) {
         // Remove collaborator
@@ -209,18 +197,14 @@ export function initializeWhiteboardSocket(io) {
           user: currentUser,
           collaborators: boardsService.getBoardCollaborators(currentRoom)
         });
-        
-        // Clean up active room if no one is left
-        const collaborators = boardsService.getBoardCollaborators(currentRoom);
-        if (collaborators.length === 0) {
-          boardsService.removeActiveRoom(currentRoom);
-        }
       }
     });
 
     // Handle manual leave room
     socket.on(EVENTS.LEAVE_ROOM, () => {
       if (currentRoom && currentUser) {
+        console.log(`👋 User ${currentUser.name} leaving room ${currentRoom}`);
+        
         socket.leave(currentRoom);
         boardsService.removeCollaborator(currentRoom, currentUser.id);
         
