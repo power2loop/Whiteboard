@@ -30,11 +30,16 @@ export default function Canvas({
   onClearFunction,
   onLoadCanvasData,
   onAddImageToCanvas,
-  onSaveFunction // NEW: Add save function prop
+  onSaveFunction,
+  // NEW: Socket.IO props
+  socket,
+  roomId,
+  userColor = "#000000"
 }) {
   const canvasRef = useRef(null);
   const textAreaRef = useRef(null);
   const [shapes, setShapes] = useState([]);
+  const [remoteCursors, setRemoteCursors] = useState(new Map());
 
   // Simple text state
   const [textInput, setTextInput] = useState({
@@ -81,6 +86,146 @@ export default function Canvas({
 
   // Add cursor hook
   const cursor = useCursor(selectedTool, panning.panOffset, images.imageToPlace, ERASER_RADIUS);
+
+  // ==================== SOCKET.IO INTEGRATION ====================
+
+  // Socket.IO: Listen for drawing events from other users
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRemoteDrawing = (data) => {
+      // Don't add our own drawings back
+      if (data.userId === socket.id) return;
+
+      // Create shape object from received data
+      const newShape = {
+        id: data.id || Date.now() + Math.random(),
+        tool: data.tool,
+        start: data.start,
+        end: data.end,
+        points: data.points,
+        color: data.color,
+        strokeWidth: data.strokeWidth,
+        opacity: data.opacity,
+        text: data.text,
+        fontSize: data.fontSize,
+        x: data.x,
+        y: data.y,
+        width: data.width,
+        height: data.height,
+        expiration: data.expiration
+      };
+
+      setShapes(prevShapes => {
+        // For pen/laser tools, update existing shape or add new one
+        if (data.tool === 'pen' || data.tool === 'laser') {
+          const existingIndex = prevShapes.findIndex(s => s.id === newShape.id);
+          if (existingIndex >= 0) {
+            const updated = [...prevShapes];
+            updated[existingIndex] = newShape;
+            return updated;
+          }
+        }
+        return [...prevShapes, newShape];
+      });
+    };
+
+    const handleRemoteCursor = (data) => {
+      setRemoteCursors(prev => {
+        const newCursors = new Map(prev);
+        newCursors.set(data.userId, {
+          name: data.name,
+          color: data.color,
+          x: data.x,
+          y: data.y,
+          timestamp: data.timestamp
+        });
+        return newCursors;
+      });
+
+      // Remove cursor after 3 seconds of inactivity
+      setTimeout(() => {
+        setRemoteCursors(prev => {
+          const newCursors = new Map(prev);
+          const cursor = newCursors.get(data.userId);
+          if (cursor && cursor.timestamp === data.timestamp) {
+            newCursors.delete(data.userId);
+          }
+          return newCursors;
+        });
+      }, 3000);
+    };
+
+    const handleCanvasState = (canvasData) => {
+      if (canvasData && canvasData.length > 0) {
+        setShapes(canvasData);
+      }
+    };
+
+    const handleClearCanvas = () => {
+      setShapes([]);
+      drawing.resetDrawing();
+      selection.resetSelection();
+      eraser.resetEraser();
+      images.resetImageStates();
+      setTextInput({
+        show: false,
+        x: 0,
+        y: 0,
+        value: "",
+        fontSize: 16
+      });
+    };
+
+    const handleRemoveCursor = (userId) => {
+      setRemoteCursors(prev => {
+        const newCursors = new Map(prev);
+        newCursors.delete(userId);
+        return newCursors;
+      });
+    };
+
+    // Socket event listeners
+    socket.on('drawing', handleRemoteDrawing);
+    socket.on('cursorMove', handleRemoteCursor);
+    socket.on('canvasState', handleCanvasState);
+    socket.on('clearCanvas', handleClearCanvas);
+    socket.on('removeCursor', handleRemoveCursor);
+
+    return () => {
+      socket.off('drawing', handleRemoteDrawing);
+      socket.off('cursorMove', handleRemoteCursor);
+      socket.off('canvasState', handleCanvasState);
+      socket.off('clearCanvas', handleClearCanvas);
+      socket.off('removeCursor', handleRemoveCursor);
+    };
+  }, [socket, drawing, selection, eraser, images]);
+
+  // Socket.IO: Broadcast drawing data
+  const broadcastDrawing = useCallback((shapeData) => {
+    if (!socket || !roomId) return;
+
+    socket.emit('drawing', {
+      ...shapeData,
+      roomId,
+      userId: socket.id,
+      timestamp: Date.now()
+    });
+  }, [socket, roomId]);
+
+  // Socket.IO: Broadcast cursor movement
+  const broadcastCursor = useCallback((x, y) => {
+    if (!socket || !roomId) return;
+
+    socket.emit('cursorMove', {
+      x,
+      y,
+      roomId,
+      timestamp: Date.now()
+    });
+  }, [socket, roomId]);
+
+  // ==================== MODIFIED FUNCTIONS ====================
 
   // Function to check if a point is inside an element
   const isPointInElement = useCallback((point, shape) => {
@@ -141,7 +286,8 @@ export default function Canvas({
     images.fileInputRef,
     images.handlePasteFromClipboard,
     images.setLoadedImages,
-    cursor
+    cursor,
+    broadcastDrawing // Pass broadcast function
   );
 
   // Enhanced mouse down handler that includes image placement
@@ -155,16 +301,28 @@ export default function Canvas({
     events.handleMouseDown(e);
   }, [images.handleImagePlacement, events]);
 
-  // Handle mouse move with image preview
+  // Handle mouse move with image preview and cursor broadcasting
   const handleMouseMoveWithPreview = useCallback((e) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Broadcast cursor position (throttled)
+      if (Date.now() - (handleMouseMoveWithPreview.lastBroadcast || 0) > 50) {
+        broadcastCursor(x, y);
+        handleMouseMoveWithPreview.lastBroadcast = Date.now();
+      }
+    }
+
     images.handleMouseMoveWithPreview(e);
 
     // Continue with normal mouse move handling
     cursor.updateMousePosition(e);
     events.handleCursorMove(e);
-  }, [images, cursor, events]);
+  }, [images, cursor, events, broadcastCursor]);
 
-  // NEW: Save canvas as PNG - Auto download function
+  // Enhanced save canvas to include broadcasting
   const saveCanvasToPNG = useCallback(async (quality = 0.95) => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -172,25 +330,19 @@ export default function Canvas({
     }
 
     try {
-      // Create a temporary canvas for saving
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
 
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
 
-      // Fill with background color
       tempCtx.fillStyle = canvasBackgroundColor;
       tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-      // Draw the main canvas content
       tempCtx.drawImage(canvas, 0, 0);
 
-      // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
       const filename = `whiteboard-${timestamp}.png`;
 
-      // Convert canvas to blob and download
       return new Promise((resolve, reject) => {
         tempCanvas.toBlob((blob) => {
           if (!blob) {
@@ -199,19 +351,16 @@ export default function Canvas({
           }
 
           try {
-            // Create download link
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = filename;
             a.style.display = 'none';
 
-            // Trigger download
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
 
-            // Clean up
             setTimeout(() => URL.revokeObjectURL(url), 1000);
 
             console.log(`Canvas saved as ${filename}`);
@@ -228,12 +377,11 @@ export default function Canvas({
     }
   }, [canvasBackgroundColor]);
 
-  // NEW: Export canvas as PNG - Same as save but different quality
   const exportCanvasToPNG = useCallback(async (quality = 1.0) => {
     return await saveCanvasToPNG(quality);
   }, [saveCanvasToPNG]);
 
-  // Clear all canvas content function
+  // Enhanced clear function with broadcasting
   const clearAllCanvas = useCallback(() => {
     console.log('Clearing entire canvas');
     console.log('Elements before clear:', shapes.length);
@@ -256,9 +404,14 @@ export default function Canvas({
         fontSize: 16
       });
 
+      // Broadcast clear to other users
+      if (socket && roomId) {
+        socket.emit('clearCanvas', { roomId });
+      }
+
       console.log('Canvas cleared successfully');
     }
-  }, [shapes, saveToHistory, drawing, selection, eraser, panning, images]);
+  }, [shapes, saveToHistory, drawing, selection, eraser, panning, images, socket, roomId]);
 
   // Expose clear function to parent component
   useEffect(() => {
@@ -267,7 +420,7 @@ export default function Canvas({
     }
   }, [clearAllCanvas, onClearFunction]);
 
-  // NEW: Expose save functions to parent component
+  // Expose save functions to parent component
   useEffect(() => {
     if (onSaveFunction) {
       onSaveFunction({
@@ -282,18 +435,13 @@ export default function Canvas({
     if (canvasData && canvasData.shapes) {
       console.log('Loading canvas data:', canvasData);
 
-      // Save current state to history before loading new data
       if (shapes.length > 0) {
         saveToHistory(shapes);
       }
 
-      // Set the new shapes
       setShapes(canvasData.shapes);
-
-      // Handle images - reload them
       images.loadImagesFromCanvasData(canvasData);
 
-      // Reset other states
       drawing.resetDrawing();
       selection.resetSelection();
       eraser.resetEraser();
@@ -470,11 +618,12 @@ export default function Canvas({
     }
   }, [selectedTool, images.fileInputRef]);
 
-  // Simple text submission
+  // Enhanced text submission with broadcasting
   const handleTextSubmit = () => {
     if (textInput.value.trim()) {
       saveToHistory(shapes);
-      setShapes(prev => [...prev, {
+      const newTextShape = {
+        id: Date.now() + Math.random(),
         tool: "text",
         text: textInput.value,
         x: textInput.x,
@@ -483,7 +632,12 @@ export default function Canvas({
         fontSize: textInput.fontSize,
         fontFamily: "Arial",
         opacity: opacity / 100
-      }]);
+      };
+
+      setShapes(prev => [...prev, newTextShape]);
+
+      // Broadcast text to other users
+      broadcastDrawing(newTextShape);
     }
     setTextInput({
       show: false,
@@ -603,6 +757,56 @@ export default function Canvas({
         onChange={images.handleFileSelect}
         style={{ display: 'none' }}
       />
+
+      {/* Render remote cursors */}
+      {Array.from(remoteCursors.entries()).map(([userId, cursor]) => (
+        <div
+          key={userId}
+          className="remote-cursor"
+          style={{
+            position: 'absolute',
+            left: cursor.x + panning.panOffset.x,
+            top: cursor.y + panning.panOffset.y,
+            pointerEvents: 'none',
+            zIndex: 1001,
+            transition: 'all 0.1s ease-out'
+          }}
+        >
+          <div
+            className="cursor-pointer"
+            style={{
+              width: '12px',
+              height: '12px',
+              borderRadius: '50% 50% 50% 0',
+              transform: 'rotate(-45deg)',
+              backgroundColor: cursor.color,
+              border: '2px solid white',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+            }}
+          />
+          <div
+            className="cursor-label"
+            style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              backgroundColor: cursor.color,
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: '500',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+              maxWidth: '80px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {cursor.name}
+          </div>
+        </div>
+      ))}
 
       {/* Render only eraser and image cursors */}
       {eraserCursor && (
