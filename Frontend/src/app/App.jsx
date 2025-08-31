@@ -6,20 +6,20 @@ import Topbar from '../components/Topbar/Topbar';
 import Rightbar from '../components/Rightbar/Rightbar';
 import socketService from '../services/socket/socket.service.js';
 import "./App.css";
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 function App() {
-
-  // Add these state variables inside your App component
+  // Collaboration state
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [collaborators, setCollaborators] = useState([]);
   const [currentBoardId, setCurrentBoardId] = useState(null);
 
+  // Tool and drawing states
   const [selectedTool, setSelectedTool] = useState("hand");
   const [selectedColor, setSelectedColor] = useState("#000000");
   const [showToolbar, setShowToolbar] = useState(false);
 
-  // Add new states for toolbar properties
+  // Toolbar properties
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokeStyle, setStrokeStyle] = useState("solid");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
@@ -40,23 +40,23 @@ function App() {
   const canvasLoadRef = useRef(null);
   const canvasAddImageRef = useRef(null);
 
-  // NEW: Add save function references
+  // Save function references
   const canvasSaveRef = useRef(null);
   const canvasExportRef = useRef(null);
 
-  // Add collaboration handler
+  // Enhanced collaboration handler
   const handleStartCollaboration = useCallback((boardId, userId, userName) => {
     console.log('🚀 Starting collaboration:', { boardId, userId, userName });
-
+    
     // Connect to socket
     socketService.connect();
-
-    // Wait a bit for connection then join room
+    
+    // Wait for connection then join room
     setTimeout(() => {
       if (socketService.joinRoom(boardId, userId, userName)) {
         setIsCollaborating(true);
         setCurrentBoardId(boardId);
-
+        
         // Set up socket event listeners
         socketService.onBoardState((data) => {
           console.log('📊 Received board state:', data);
@@ -65,48 +65,111 @@ function App() {
           }
           setCollaborators(data.collaborators || []);
         });
-
+        
         socketService.onUserJoined((data) => {
           console.log('👋 User joined:', data.user.name);
           setCollaborators(data.collaborators);
         });
-
+        
         socketService.onUserLeft((data) => {
           console.log('👋 User left:', data.user.name);
           setCollaborators(data.collaborators);
         });
-
+        
         socketService.onShapesUpdate((data) => {
-          console.log('🎨 Shapes updated by:', data.updatedBy);
+          console.log('🎨 Shapes updated by:', data.updatedBy || 'collaborator');
           if (canvasLoadRef.current) {
             canvasLoadRef.current({ shapes: data.shapes });
           }
         });
-
+        
         socketService.onCanvasClear(() => {
           console.log('🧹 Canvas cleared by collaborator');
           if (canvasClearRef.current) {
             canvasClearRef.current();
           }
         });
+
+        // Additional collaboration events
+        socketService.onDrawingStart((data) => {
+          console.log('🎨 Remote drawing started:', data);
+        });
+
+        socketService.onDrawingUpdate((data) => {
+          console.log('🎨 Remote drawing updated');
+        });
+
+        socketService.onDrawingEnd((data) => {
+          console.log('🎨 Remote drawing ended:', data);
+        });
       }
     }, 1000);
   }, []);
 
-  // Update your Canvas component props to include collaboration callbacks
-  const canvasCollaborationProps = {
-    onShapesChange: (shapes) => {
-      if (isCollaborating) {
-        socketService.emitShapesUpdate(shapes);
-      }
-    },
-    onCanvasClear: () => {
-      if (isCollaborating) {
-        socketService.emitCanvasClear();
-      }
+  // Check for collaboration URL parameters on load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const boardId = urlParams.get('boardId');
+    
+    if (boardId) {
+      console.log('🔗 Auto-joining collaboration from URL:', boardId);
+      
+      // Get user info (you could also check if user is logged in)
+      const userName = prompt("Enter your name to join this whiteboard collaboration:") || "Anonymous User";
+      const userId = `guest_${Date.now()}_${Math.random()}`;
+      
+      // Start collaboration after a short delay
+      setTimeout(() => {
+        handleStartCollaboration(boardId, userId, userName);
+      }, 500);
+      
+      // Clean URL after joining (optional)
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  };
+  }, [handleStartCollaboration]);
 
+  // Enhanced collaboration callbacks
+  const handleShapesChange = useCallback((shapes) => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      console.log('📤 Emitting shapes update, count:', shapes.length);
+      socketService.emitShapesUpdate(shapes);
+    }
+  }, [isCollaborating]);
+
+  const handleDrawingStart = useCallback((data) => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      console.log('📤 Emitting drawing start:', data.tool);
+      socketService.emitDrawingStart(data);
+    }
+  }, [isCollaborating]);
+
+  const handleDrawingUpdate = useCallback((data) => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      socketService.emitDrawingUpdate(data);
+    }
+  }, [isCollaborating]);
+
+  const handleDrawingEnd = useCallback((data) => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      console.log('📤 Emitting drawing end:', data.tool);
+      socketService.emitDrawingEnd(data);
+    }
+  }, [isCollaborating]);
+
+  const handleCanvasClearCollaboration = useCallback(() => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      console.log('📤 Emitting canvas clear');
+      socketService.emitCanvasClear();
+    }
+  }, [isCollaborating]);
+
+  const handleCursorMove = useCallback((x, y) => {
+    if (isCollaborating && socketService.isSocketConnected()) {
+      socketService.emitCursorMove(x, y);
+    }
+  }, [isCollaborating]);
+
+  // Tool selection handler
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
     if (["hand", "select", "image", "eraser"].includes(tool)) {
@@ -116,6 +179,7 @@ function App() {
     }
   };
 
+  // Undo/Redo handlers
   const handleUndo = () => {
     if (undoFunctionRef.current) {
       undoFunctionRef.current();
@@ -128,6 +192,7 @@ function App() {
     }
   };
 
+  // Canvas action handlers
   const handleCopyCanvas = async () => {
     if (canvasCopyRef.current) {
       try {
@@ -146,13 +211,16 @@ function App() {
       try {
         canvasClearRef.current();
         console.log('Canvas cleared successfully!');
+        
+        // Emit clear event for collaboration
+        handleCanvasClearCollaboration();
       } catch (error) {
         console.error('Failed to clear canvas:', error);
       }
     }
   };
 
-  // NEW: Handle save canvas from Sidebar
+  // Save canvas handler
   const handleSaveCanvas = async () => {
     if (canvasSaveRef.current) {
       try {
@@ -167,7 +235,7 @@ function App() {
     }
   };
 
-  // NEW: Handle export image from Sidebar
+  // Export image handler
   const handleExportImage = async () => {
     if (canvasExportRef.current) {
       try {
@@ -182,7 +250,7 @@ function App() {
     }
   };
 
-  // NEW: Handle save functions from Canvas
+  // Handle save functions from Canvas
   const handleSaveFunctions = (functions) => {
     canvasSaveRef.current = functions.saveCanvas;
     canvasExportRef.current = functions.exportImage;
@@ -198,7 +266,7 @@ function App() {
     alert('Help: Use the tools to draw, add text, or insert images. Use Ctrl+Z for undo and Ctrl+Y for redo. Click Save to download your work!');
   };
 
-  // Updated function to handle both canvas data and images
+  // File handling function
   const handleOpenFile = (fileData) => {
     if (fileData.type === 'canvas') {
       // Handle JSON canvas file
@@ -225,6 +293,26 @@ function App() {
     }
   };
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (isCollaborating) {
+        socketService.leaveRoom();
+        socketService.disconnect();
+      }
+    };
+  }, [isCollaborating]);
+
+  // Debug collaboration state
+  useEffect(() => {
+    console.log('Collaboration state:', { 
+      isCollaborating, 
+      collaboratorsCount: collaborators.length,
+      currentBoardId,
+      socketConnected: socketService.isSocketConnected()
+    });
+  }, [isCollaborating, collaborators.length, currentBoardId]);
+
   return (
     <div className="app">
       <div className="layout">
@@ -235,6 +323,7 @@ function App() {
             onColorSelect={setSelectedColor}
           />
         </header>
+        
         <aside className="sidebar">
           <Sidebar
             onOpenFile={handleOpenFile}
@@ -244,11 +333,15 @@ function App() {
             onShowHelp={handleShowHelp}
           />
         </aside>
+        
         <aside className="rightbar">
-          <Rightbar onStartCollaboration={handleStartCollaboration}
+          <Rightbar 
+            onStartCollaboration={handleStartCollaboration}
             isCollaborating={isCollaborating}
-            collaborators={collaborators} />
+            collaborators={collaborators}
+          />
         </aside>
+        
         {showToolbar && (
           <Toolbar
             selectedColor={selectedColor}
@@ -265,6 +358,7 @@ function App() {
             onClearCanvas={handleClearCanvas}
           />
         )}
+        
         <main className="canvas">
           <Canvas
             selectedTool={selectedTool}
@@ -284,17 +378,18 @@ function App() {
             onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
             onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
             onSaveFunction={handleSaveFunctions}
-
-            //collab props
-            onShapesChange={socketService.emitShapesUpdate}
-            onDrawingStart={(data) => socketService.emitDrawingStart(data)}
-            onDrawingUpdate={(data) => socketService.emitDrawingUpdate(data)}
-            onDrawingEnd={(data) => socketService.emitDrawingEnd(data)}
-            onCanvasClearCollaboration={socketService.emitCanvasClear}
-            onCursorMove={socketService.emitCursorMove}
+            
+            // Collaboration props with proper handlers
+            onShapesChange={handleShapesChange}
+            onDrawingStart={handleDrawingStart}
+            onDrawingUpdate={handleDrawingUpdate}
+            onDrawingEnd={handleDrawingEnd}
+            onCanvasClearCollaboration={handleCanvasClearCollaboration}
+            onCursorMove={handleCursorMove}
             isCollaborating={isCollaborating}
           />
         </main>
+        
         <footer className="bottom-controls">
           <BottomControls
             onUndo={handleUndo}
@@ -308,6 +403,21 @@ function App() {
           />
         </footer>
       </div>
+      
+      {/* Collaboration status indicator */}
+      {/* {isCollaborating && (
+        <div className="collaboration-indicator">
+          <div className="collaboration-status">
+            <div className="status-dot"></div>
+            <span>Live collaboration active</span>
+            {collaborators.length > 0 && (
+              <span className="collaborators-count-small">
+                {collaborators.length} online
+              </span>
+            )}
+          </div>
+        </div>
+      )} */}
     </div>
   );
 }

@@ -64,9 +64,30 @@ class SocketService {
   }
 
   // Drawing events
+  emitDrawingStart(data) {
+    if (this.socket && this.currentRoom) {
+      this.socket.emit('drawing_start', data);
+      console.log('🎨 Drawing start emitted:', data);
+    }
+  }
+
+  emitDrawingUpdate(data) {
+    if (this.socket && this.currentRoom) {
+      this.socket.emit('drawing_update', data);
+    }
+  }
+
+  emitDrawingEnd(data) {
+    if (this.socket && this.currentRoom) {
+      this.socket.emit('drawing_end', data);
+      console.log('🎨 Drawing end emitted:', data);
+    }
+  }
+
   emitShapesUpdate(shapes) {
     if (this.socket && this.currentRoom) {
       this.socket.emit('shapes_update', { shapes });
+      console.log('📊 Shapes update emitted, count:', shapes.length);
     }
   }
 
@@ -79,6 +100,7 @@ class SocketService {
   emitCanvasClear() {
     if (this.socket && this.currentRoom) {
       this.socket.emit('canvas_clear');
+      console.log('🧹 Canvas clear emitted');
     }
   }
 
@@ -107,9 +129,33 @@ class SocketService {
     }
   }
 
+  onCursorUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('cursor_update', callback);
+    }
+  }
+
   onCanvasClear(callback) {
     if (this.socket) {
       this.socket.on('canvas_clear', callback);
+    }
+  }
+
+  onDrawingStart(callback) {
+    if (this.socket) {
+      this.socket.on('drawing_start', callback);
+    }
+  }
+
+  onDrawingUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('drawing_update', callback);
+    }
+  }
+
+  onDrawingEnd(callback) {
+    if (this.socket) {
+      this.socket.on('drawing_end', callback);
     }
   }
 

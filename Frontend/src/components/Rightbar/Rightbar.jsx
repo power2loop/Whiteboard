@@ -105,7 +105,8 @@ const Rightbar = ({ onStartCollaboration, isCollaborating, collaborators = [] })
       const result = await response.json();
       
       if (result.success) {
-        const collaborationUrl = `${window.location.origin}/collaborate/${result.data.boardId}`;
+        // Updated to use query parameters instead of path parameters
+        const collaborationUrl = `${window.location.origin}?boardId=${result.data.boardId}`;
         setShareUrl(collaborationUrl);
         setShowShareModal(true);
         
