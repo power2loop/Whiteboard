@@ -110,12 +110,10 @@ export default function Canvas({
   const images = useCanvasImages(shapes, setShapes, saveToHistory, panning, opacity, canvasRef);
   const cursor = useCursor(selectedTool, panning.panOffset, imagePreview || images.imageToPlace, ERASER_RADIUS);
 
-  // ==================== DECLARE BROADCAST FUNCTIONS FIRST ====================
+  // ==================== BROADCAST FUNCTIONS ====================
 
-  // Immediate broadcast for completed shapes - DECLARED EARLY
   const broadcastDrawingImmediate = useCallback((shapeData) => {
     if (!socket || !roomId) return;
-
     socket.emit('drawing', {
       ...shapeData,
       roomId,
@@ -124,13 +122,10 @@ export default function Canvas({
     });
   }, [socket, roomId]);
 
-  // Throttled pen stroke broadcasting
   const broadcastPenStroke = useCallback((points, strokeId) => {
     if (!socket || !roomId) return;
-
     const now = Date.now();
-    if (now - lastBroadcastTime.current < 16) return; // ~60fps max
-
+    if (now - lastBroadcastTime.current < 16) return;
     lastBroadcastTime.current = now;
 
     socket.emit('penStroke', {
@@ -146,13 +141,10 @@ export default function Canvas({
     });
   }, [socket, roomId, selectedColor, strokeWidth, opacity]);
 
-  // Ultra-throttled cursor broadcasting
   const broadcastCursor = useCallback((x, y) => {
     if (!socket || !roomId) return;
-
     const now = Date.now();
-    if (now - lastCursorBroadcast.current < 50) return; // 20fps max
-
+    if (now - lastCursorBroadcast.current < 50) return;
     lastCursorBroadcast.current = now;
 
     socket.emit('cursorMove', {
@@ -163,7 +155,6 @@ export default function Canvas({
 
   // ==================== IMAGE HANDLING FUNCTIONS ====================
 
-  // Handle file selection for images
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -175,14 +166,12 @@ export default function Canvas({
           let width = img.naturalWidth;
           let height = img.naturalHeight;
 
-          // Resize if too large
           if (width > maxSize || height > maxSize) {
             const ratio = Math.min(maxSize / width, maxSize / height);
             width = width * ratio;
             height = height * ratio;
           }
 
-          // Set image preview for placement
           setImagePreview({
             src: event.target.result,
             width,
@@ -200,12 +189,9 @@ export default function Canvas({
       };
       reader.readAsDataURL(file);
     }
-
-    // Reset file input
     e.target.value = '';
   }, []);
 
-  // Handle image placement on canvas
   const handleImagePlacement = useCallback((e) => {
     if (!imagePreview) return false;
 
@@ -216,22 +202,19 @@ export default function Canvas({
     const x = e.clientX - rect.left - panning.panOffset.x;
     const y = e.clientY - rect.top - panning.panOffset.y;
 
-    // Place the image at clicked position
     saveToHistory(shapes);
     const imageId = `img_${Date.now()}_${Math.random()}`;
 
-    // Create image element and add to loaded images
     const newImg = new Image();
     newImg.onload = () => {
       images.setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
     };
     newImg.src = imagePreview.src;
 
-    // Add image shape to canvas
     const newImageShape = {
       id: imageId,
       tool: "image",
-      x: x - imagePreview.width / 2, // Center on click point
+      x: x - imagePreview.width / 2,
       y: y - imagePreview.height / 2,
       width: imagePreview.width,
       height: imagePreview.height,
@@ -243,16 +226,12 @@ export default function Canvas({
     setShapes(prev => [...prev, newImageShape]);
     broadcastDrawingImmediate(newImageShape);
 
-    console.log(`Image "${imagePreview.name}" placed at position (${Math.round(x)}, ${Math.round(y)})`);
-
-    // Clear preview after placing
     setImagePreview(null);
     setMousePosition({ x: 0, y: 0 });
 
     return true;
   }, [imagePreview, shapes, saveToHistory, panning.panOffset, opacity, images, broadcastDrawingImmediate]);
 
-  // Handle mouse move for image preview
   const handleMouseMoveWithPreview = useCallback((e) => {
     if (imagePreview) {
       const canvas = canvasRef.current;
@@ -265,7 +244,6 @@ export default function Canvas({
     }
   }, [imagePreview, panning.panOffset]);
 
-  // Handle ESC key to cancel image preview
   const handleEscapeKey = useCallback((e) => {
     if (e.key === 'Escape' && imagePreview) {
       setImagePreview(null);
@@ -274,7 +252,7 @@ export default function Canvas({
     }
   }, [imagePreview]);
 
-  // ==================== ULTRA-FAST DRAWING SYSTEM ====================
+  // ==================== DRAWING SYSTEM ====================
 
   const drawDirectlyOnCanvas = useCallback((point, isEnd = false) => {
     const canvas = canvasRef.current;
@@ -298,12 +276,9 @@ export default function Canvas({
 
     lastPointRef.current = point;
     ctx.restore();
-
-    // Add point to current drawing
     drawing.setPenPoints(prev => [...prev, point]);
 
     if (isEnd) {
-      // Finalize the stroke
       const newShape = {
         id: currentStrokeIdRef.current,
         tool: 'pen',
@@ -316,22 +291,185 @@ export default function Canvas({
 
       setShapes(prev => [...prev, newShape]);
       broadcastDrawingImmediate(newShape);
-
-      // Reset drawing state
       drawing.setPenPoints([]);
       lastPointRef.current = null;
       currentStrokeIdRef.current = null;
     }
   }, [selectedTool, selectedColor, strokeWidth, opacity, drawing, panning.panOffset, broadcastDrawingImmediate]);
 
+  // ==================== HELPER FUNCTIONS FOR ERASER ====================
+
+  const pointNearLine = useCallback((point, start, end, threshold) => {
+    const A = point.x - start.x, B = point.y - start.y;
+    const C = end.x - start.x, D = end.y - start.y;
+    const dot = A * C + B * D, len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+
+    let xx, yy;
+    if (param < 0) { xx = start.x; yy = start.y; }
+    else if (param > 1) { xx = end.x; yy = end.y; }
+    else { xx = start.x + param * C; yy = start.y + param * D; }
+
+    const dx = point.x - xx, dy = point.y - yy;
+    return dx * dx + dy * dy <= threshold * threshold;
+  }, []);
+
+  const interpolatePoints = useCallback((p1, p2, spacing = 2) => {
+    const points = [];
+    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    const steps = Math.max(1, Math.floor(dist / spacing));
+
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      points.push({
+        x: p1.x + (p2.x - p1.x) * t,
+        y: p1.y + (p2.y - p1.y) * t,
+      });
+    }
+    return points;
+  }, []);
+
+  const isPointInElement = useCallback((point, shape) => {
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      if (!shape.points || shape.points.length < 2) return false;
+      const points = shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        if (pointNearLine(point, p1, p2, 10)) return true;
+      }
+      return false;
+    } else if (shape.tool === "text") {
+      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+      const textHeight = (shape.fontSize || 16) * 1.2;
+      return point.x >= shape.x && point.x <= shape.x + textWidth &&
+        point.y >= shape.y && point.y <= shape.y + textHeight;
+    } else if (shape.tool === "image") {
+      return point.x >= shape.x && point.x <= shape.x + shape.width &&
+        point.y >= shape.y && point.y <= shape.y + shape.height;
+    } else if (shape.start && shape.end) {
+      // Handle rectangle, circle, etc.
+      const minX = Math.min(shape.start.x, shape.end.x);
+      const maxX = Math.max(shape.start.x, shape.end.x);
+      const minY = Math.min(shape.start.y, shape.end.y);
+      const maxY = Math.max(shape.start.y, shape.end.y);
+      return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+    }
+    return false;
+  }, [pointNearLine]);
+
+  // ==================== ENHANCED ERASER DETECTION ====================
+
+  const shapeIntersectsEraser = useCallback((shape, eraserPts) => {
+    if (!eraserPts || eraserPts.length === 0) return false;
+
+    const ERASER_RADIUS = 2;
+
+    // Handle pen/laser strokes
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      if (!shape.points || shape.points.length < 2) return false;
+      const points = shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        for (const ep of eraserPts) {
+          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
+        }
+      }
+      return false;
+    }
+
+    // Handle text
+    if (shape.tool === "text") {
+      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+      const textHeight = (shape.fontSize || 16) * 1.2;
+
+      return eraserPts.some(ep =>
+        ep.x >= shape.x && ep.x <= shape.x + textWidth &&
+        ep.y >= shape.y && ep.y <= shape.y + textHeight
+      );
+    }
+
+    // Handle images
+    if (shape.tool === "image") {
+      return eraserPts.some(ep =>
+        ep.x >= shape.x && ep.x <= shape.x + shape.width &&
+        ep.y >= shape.y && ep.y <= shape.y + shape.height
+      );
+    }
+
+    // Handle geometric shapes (rectangle, square, circle, diamond, line, arrow)
+    if (shape.start && shape.end) {
+      const minX = Math.min(shape.start.x, shape.end.x);
+      const maxX = Math.max(shape.start.x, shape.end.x);
+      const minY = Math.min(shape.start.y, shape.end.y);
+      const maxY = Math.max(shape.start.y, shape.end.y);
+
+      // Special handling for circles
+      if (shape.tool === "circle") {
+        const centerX = (shape.start.x + shape.end.x) / 2;
+        const centerY = (shape.start.y + shape.end.y) / 2;
+        const radius = Math.sqrt(Math.pow(shape.end.x - shape.start.x, 2) + Math.pow(shape.end.y - shape.start.y, 2)) / 2;
+
+        return eraserPts.some(ep => {
+          const dx = ep.x - centerX;
+          const dy = ep.y - centerY;
+          return Math.sqrt(dx * dx + dy * dy) <= radius + ERASER_RADIUS;
+        });
+      }
+
+      // Special handling for diamonds
+      if (shape.tool === "diamond") {
+        const cx = (shape.start.x + shape.end.x) / 2;
+        const cy = (shape.start.y + shape.end.y) / 2;
+        const w = Math.abs(shape.end.x - shape.start.x) / 2;
+        const h = Math.abs(shape.end.y - shape.start.y) / 2;
+
+        return eraserPts.some(ep => {
+          const dx = Math.abs(ep.x - cx);
+          const dy = Math.abs(ep.y - cy);
+          // Diamond equation: |x-cx|/w + |y-cy|/h <= 1
+          return (dx / w + dy / h) <= 1 + (ERASER_RADIUS / Math.max(w, h));
+        });
+      }
+
+      // Special handling for squares (maintain aspect ratio)
+      if (shape.tool === "square") {
+        const size = Math.max(Math.abs(shape.end.x - shape.start.x), Math.abs(shape.end.y - shape.start.y));
+        const adjustedMaxX = shape.start.x + size * Math.sign(shape.end.x - shape.start.x);
+        const adjustedMaxY = shape.start.y + size * Math.sign(shape.end.y - shape.start.y);
+
+        return eraserPts.some(ep =>
+          ep.x >= Math.min(shape.start.x, adjustedMaxX) &&
+          ep.x <= Math.max(shape.start.x, adjustedMaxX) &&
+          ep.y >= Math.min(shape.start.y, adjustedMaxY) &&
+          ep.y <= Math.max(shape.start.y, adjustedMaxY)
+        );
+      }
+
+      // Handle lines and arrows with thickness
+      if (shape.tool === "line" || shape.tool === "arrow") {
+        return eraserPts.some(ep => pointNearLine(ep, shape.start, shape.end, ERASER_RADIUS + (shape.strokeWidth || 2) / 2));
+      }
+
+      // Default bounding box check for rectangles and other shapes
+      return eraserPts.some(ep =>
+        ep.x >= minX - ERASER_RADIUS && ep.x <= maxX + ERASER_RADIUS &&
+        ep.y >= minY - ERASER_RADIUS && ep.y <= maxY + ERASER_RADIUS
+      );
+    }
+
+    return false;
+  }, [pointNearLine]);
+
   // ==================== EVENT HANDLERS ====================
 
   const handleMouseDown = useCallback((e) => {
     if (!canvasRef.current) return;
 
-    // FIRST: Check if we're placing an image
     if (handleImagePlacement(e)) {
-      return; // Image was placed, don't continue with other mouse handling
+      return;
     }
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -357,13 +495,10 @@ export default function Canvas({
         fontSize: Math.max(strokeWidth * 8, 16)
       });
     } else if (selectedTool === 'image') {
-      // Remove this line - the toolbar will handle triggering the file input
-      // fileInputRef.current?.click();
-      return; // Don't set isDrawing for image tool
+      return;
     } else if (selectedTool === 'eraser') {
       eraser.startErasing(point);
     } else if (selectedTool === 'hand') {
-      // Handle selection logic here
       let clickedElementIndex = -1;
       for (let i = shapes.length - 1; i >= 0; i--) {
         if (isPointInElement(point, shapes[i])) {
@@ -383,7 +518,7 @@ export default function Canvas({
         selection.startSelection(point);
       }
     }
-  }, [selectedTool, panning.panOffset, drawing, strokeWidth, drawDirectlyOnCanvas, eraser, shapes, selection, handleImagePlacement]);
+  }, [selectedTool, panning.panOffset, drawing, strokeWidth, drawDirectlyOnCanvas, eraser, shapes, selection, handleImagePlacement, isPointInElement]);
 
   const handleMouseMove = useCallback((e) => {
     if (!canvasRef.current) return;
@@ -396,18 +531,12 @@ export default function Canvas({
       y: y - panning.panOffset.y
     };
 
-    // Handle image preview
     handleMouseMoveWithPreview(e);
-
-    // Broadcast cursor (throttled)
     broadcastCursor(x, y);
 
     if (isDrawingRef.current) {
       if (selectedTool === 'pen') {
-        // Direct canvas drawing for immediate response
         drawDirectlyOnCanvas(point);
-
-        // Broadcast pen stroke (throttled)
         if (drawing.penPoints.length > 0) {
           broadcastPenStroke([...drawing.penPoints, point], currentStrokeIdRef.current);
         }
@@ -424,7 +553,7 @@ export default function Canvas({
     }
 
     cursor.updateMousePosition(e);
-  }, [selectedTool, panning.panOffset, drawing, broadcastCursor, broadcastPenStroke, cursor, drawDirectlyOnCanvas, eraser, selection, handleMouseMoveWithPreview]);
+  }, [selectedTool, panning.panOffset, drawing, broadcastCursor, broadcastPenStroke, cursor, drawDirectlyOnCanvas, eraser, selection, handleMouseMoveWithPreview, interpolatePoints, shapeIntersectsEraser]);
 
   const handleMouseUp = useCallback((e) => {
     if (!isDrawingRef.current) return;
@@ -438,7 +567,7 @@ export default function Canvas({
           x: e.clientX - rect.left - panning.panOffset.x,
           y: e.clientY - rect.top - panning.panOffset.y
         };
-        drawDirectlyOnCanvas(point, true); // End the stroke
+        drawDirectlyOnCanvas(point, true);
       }
     } else if (SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
       const newShape = {
@@ -465,74 +594,6 @@ export default function Canvas({
       requestAnimationFrame(redrawCanvas);
     }
   }, [selectedTool, drawing, selectedColor, backgroundColor, strokeWidth, strokeStyle, opacity, panning.panOffset, broadcastDrawingImmediate, drawDirectlyOnCanvas, eraser, selection]);
-
-  // Helper functions
-  const isPointInElement = useCallback((point, shape) => {
-    if (shape.tool === "pen" || shape.tool === "laser") {
-      const points = shape.points;
-      for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        if (pointNearLine(point, p1, p2, 10)) return true;
-      }
-      return false;
-    } else if (shape.tool === "text") {
-      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
-      const textHeight = (shape.fontSize || 16) * 1.2;
-      return point.x >= shape.x && point.x <= shape.x + textWidth &&
-        point.y >= shape.y && point.y <= shape.y + textHeight;
-    } else if (shape.tool === "image") {
-      return point.x >= shape.x && point.x <= shape.x + shape.width &&
-        point.y >= shape.y && point.y <= shape.y + shape.height;
-    }
-    return false;
-  }, []);
-
-  const pointNearLine = (point, start, end, threshold) => {
-    const A = point.x - start.x, B = point.y - start.y;
-    const C = end.x - start.x, D = end.y - start.y;
-    const dot = A * C + B * D, len_sq = C * C + D * D;
-    let param = -1;
-    if (len_sq !== 0) param = dot / len_sq;
-
-    let xx, yy;
-    if (param < 0) { xx = start.x; yy = start.y; }
-    else if (param > 1) { xx = end.x; yy = end.y; }
-    else { xx = start.x + param * C; yy = start.y + param * D; }
-
-    const dx = point.x - xx, dy = point.y - yy;
-    return dx * dx + dy * dy <= threshold * threshold;
-  };
-
-  const interpolatePoints = (p1, p2, spacing = 2) => {
-    const points = [];
-    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    const steps = Math.floor(dist / spacing);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      points.push({
-        x: p1.x + (p2.x - p1.x) * t,
-        y: p1.y + (p2.y - p1.y) * t,
-      });
-    }
-    return points;
-  };
-
-  const shapeIntersectsEraser = (shape, eraserPts) => {
-    const ERASER_RADIUS = 2;
-    if (shape.tool === "pen" || shape.tool === "laser") {
-      const points = shape.points;
-      for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        for (const ep of eraserPts) {
-          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
-        }
-      }
-      return false;
-    }
-    return eraserPts.some(ep => isPointInElement(ep, shape));
-  };
 
   // ==================== SOCKET EVENT HANDLERS ====================
 
@@ -644,7 +705,6 @@ export default function Canvas({
     eraser.resetEraser();
     images.resetImageStates();
     setTextInput({ show: false, x: 0, y: 0, value: "", fontSize: 16 });
-    // Clear image preview
     setImagePreview(null);
     setMousePosition({ x: 0, y: 0 });
     requestAnimationFrame(redrawCanvas);
@@ -670,7 +730,6 @@ export default function Canvas({
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-
     ctx.fillStyle = canvasBackgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, [canvasBackgroundColor]);
@@ -680,15 +739,12 @@ export default function Canvas({
     const ctx = contextRef.current;
     if (!canvas || !ctx) return;
 
-    // Clear canvas
     ctx.fillStyle = canvasBackgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Apply pan offset
     ctx.save();
     ctx.translate(panning.panOffset.x, panning.panOffset.y);
 
-    // Draw all shapes
     shapes.forEach((shape, idx) => {
       const isSelected = selection.selectedElements.includes(idx);
       const isFaded = eraser.markedIds.includes(idx);
@@ -1009,7 +1065,7 @@ export default function Canvas({
     }
   }, [onAddImageToCanvas, opacity, broadcastDrawingImmediate, images]);
 
-  // NEW: Expose image trigger function to parent - THIS IS THE KEY FIX
+  // Expose image trigger function to parent
   useEffect(() => {
     if (onImageTrigger) {
       onImageTrigger(() => {

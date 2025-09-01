@@ -12,30 +12,33 @@ export default function useCanvasEraser(shapes, setShapes, saveToHistory) {
         setMarkedIds([]);
     }, []);
 
-    // Update eraser path and check for intersections
+    // Update eraser path and check for intersections - FIXED VERSION
     const updateErasing = useCallback((point, interpolatePoints, shapeIntersectsEraser) => {
+        // Use functional state update to get latest eraserPath
         setEraserPath(prev => {
             if (prev.length === 0) return [point];
             const lastPoint = prev[prev.length - 1];
             const newPoints = interpolatePoints(lastPoint, point);
-            return [...prev, ...newPoints, point];
+            const newPath = [...prev, ...newPoints, point];
+
+            // Calculate intersections with the most up-to-date path
+            const newMarkedIds = shapes
+                .map((shape, idx) => ({ shape, idx }))
+                .filter(({ shape }) => shapeIntersectsEraser(shape, newPath))
+                .map(({ idx }) => idx);
+
+            // Update marked IDs immediately with the new path
+            setMarkedIds(newMarkedIds);
+
+            return newPath;
         });
-
-        // Calculate which shapes intersect with current eraser path
-        const eraserPointsForCheck = [...eraserPath, point];
-        const newMarkedIds = shapes
-            .map((shape, idx) => ({ shape, idx }))
-            .filter(({ shape }) => shapeIntersectsEraser(shape, eraserPointsForCheck))
-            .map(({ idx }) => idx);
-
-        setMarkedIds(newMarkedIds);
-    }, [eraserPath, shapes]);
+    }, [shapes]); // Removed eraserPath from dependencies to avoid stale closures
 
     // Complete erasing operation
     const finishErasing = useCallback(() => {
         if (markedIds.length > 0) {
             saveToHistory(shapes);
-            setShapes(shapes.filter((_, i) => !markedIds.includes(i)));
+            setShapes(prevShapes => prevShapes.filter((_, i) => !markedIds.includes(i)));
         }
         setMarkedIds([]);
         setEraserPath([]);
