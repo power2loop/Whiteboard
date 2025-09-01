@@ -17,6 +17,8 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
             currentStrokeId.current = Date.now() + Math.random();
             setPenPoints([point]);
         } else if (selectedTool === "laser") {
+            // FIX: Add laser initialization
+            currentStrokeId.current = Date.now() + Math.random();
             setLaserPoints([point]);
         } else if (SHAPE_TOOLS.includes(selectedTool)) {
             setStartPoint(point);
@@ -27,6 +29,9 @@ export default function useCanvasDrawing(selectedTool, selectedColor, strokeWidt
     const addPoint = useCallback((point) => {
         if (selectedTool === "pen") {
             setPenPoints(ps => [...ps, point]);
+        } else if (selectedTool === "laser") {
+            // FIX: Add laser point support
+            setLaserPoints(ls => [...ls, point]);
         }
     }, [selectedTool]);
 

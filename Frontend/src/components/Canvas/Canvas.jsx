@@ -12,6 +12,7 @@ import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
 const ERASER_RADIUS = 2;
+const LASER_DURATION = 3000; // 3 seconds - laser auto-expires
 
 // Custom throttle function
 const throttle = (func, delay) => {
@@ -109,6 +110,16 @@ export default function Canvas({
   const renderer = useCanvasRenderer();
   const images = useCanvasImages(shapes, setShapes, saveToHistory, panning, opacity, canvasRef);
   const cursor = useCursor(selectedTool, panning.panOffset, imagePreview || images.imageToPlace, ERASER_RADIUS);
+
+  // FIX: Helper function to ensure laser visibility on any background
+  const getLaserColor = useCallback((color) => {
+    // For very dark colors, use white for better visibility
+    if (color === '#191919' || color === '#000000') {
+      return '#FFFFFF';
+    }
+    // For all other colors, use them as-is
+    return color;
+  }, []);
 
   // ==================== BROADCAST FUNCTIONS ====================
 
@@ -484,6 +495,11 @@ export default function Canvas({
       currentStrokeIdRef.current = Date.now() + Math.random();
       drawing.startDrawing(point);
       drawDirectlyOnCanvas(point);
+    } else if (selectedTool === 'laser') {
+      // FIX: Add laser tool initialization
+      currentStrokeIdRef.current = Date.now() + Math.random();
+      drawing.startDrawing(point);
+      // Don't use drawDirectlyOnCanvas for laser - use standard drawing system
     } else if (SHAPE_TOOLS.includes(selectedTool)) {
       drawing.startDrawing(point);
     } else if (selectedTool === 'text') {
@@ -540,6 +556,10 @@ export default function Canvas({
         if (drawing.penPoints.length > 0) {
           broadcastPenStroke([...drawing.penPoints, point], currentStrokeIdRef.current);
         }
+      } else if (selectedTool === 'laser') {
+        // FIX: Add laser drawing logic
+        drawing.updateDrawing(point);
+        requestAnimationFrame(redrawCanvas);
       } else if (SHAPE_TOOLS.includes(selectedTool)) {
         drawing.updateDrawing(point);
         requestAnimationFrame(redrawCanvas);
@@ -568,6 +588,32 @@ export default function Canvas({
           y: e.clientY - rect.top - panning.panOffset.y
         };
         drawDirectlyOnCanvas(point, true);
+      }
+    } else if (selectedTool === 'laser') {
+      // FIX: Add laser completion logic with expiration and dynamic color
+      if (drawing.laserPoints && drawing.laserPoints.length > 0) {
+        const newShape = {
+          id: currentStrokeIdRef.current,
+          tool: 'laser',
+          points: drawing.laserPoints,
+          color: selectedColor, // FIX: Use selected color from toolbar
+          strokeWidth,
+          strokeStyle,
+          opacity: opacity / 100,
+          expiration: Date.now() + LASER_DURATION // FIX: Add expiration time
+        };
+
+        setShapes(prev => [...prev, newShape]);
+        broadcastDrawingImmediate(newShape);
+
+        // FIX: Auto-remove laser after duration
+        setTimeout(() => {
+          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
+          requestAnimationFrame(redrawCanvas);
+        }, LASER_DURATION);
+
+        drawing.resetDrawing();
+        requestAnimationFrame(redrawCanvas);
       }
     } else if (SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
       const newShape = {
@@ -619,7 +665,7 @@ export default function Canvas({
       height: data.height,
       src: data.src,
       backgroundColor: data.backgroundColor,
-      expiration: data.expiration
+      expiration: data.expiration // FIX: Include expiration for remote laser strokes
     };
 
     setShapes(prev => {
@@ -633,6 +679,17 @@ export default function Canvas({
       }
       return [...prev, newShape];
     });
+
+    // FIX: Auto-remove remote laser strokes when they expire
+    if (data.tool === 'laser' && data.expiration) {
+      const timeLeft = data.expiration - Date.now();
+      if (timeLeft > 0) {
+        setTimeout(() => {
+          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
+          requestAnimationFrame(redrawCanvas);
+        }, timeLeft);
+      }
+    }
 
     if (data.tool === 'image' && data.src) {
       const img = new Image();
@@ -749,19 +806,36 @@ export default function Canvas({
       const isSelected = selection.selectedElements.includes(idx);
       const isFaded = eraser.markedIds.includes(idx);
 
+      // Skip expired laser shapes
+      if (shape.tool === 'laser' && shape.expiration && Date.now() > shape.expiration) {
+        return;
+      }
+
       if (shape.tool === 'pen' || shape.tool === 'laser') {
         if (!shape.points || shape.points.length < 2) return;
 
         ctx.save();
         ctx.globalAlpha = isFaded ? 0.3 : (shape.opacity || 1);
-        ctx.strokeStyle = shape.color || '#000000';
         ctx.lineWidth = shape.strokeWidth || 2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
         if (shape.tool === 'laser') {
-          ctx.shadowColor = shape.color;
-          ctx.shadowBlur = 10;
+          // FIX: Use shape's color with visibility enhancement
+          const laserColor = getLaserColor(shape.color || selectedColor);
+          ctx.strokeStyle = laserColor;
+          ctx.shadowColor = laserColor;
+          ctx.shadowBlur = 15;
+          ctx.lineWidth = (shape.strokeWidth || 2) + 2; // Slightly thicker
+
+          // Add fade effect as laser approaches expiration
+          if (shape.expiration) {
+            const timeLeft = shape.expiration - Date.now();
+            const fadeRatio = timeLeft / LASER_DURATION;
+            ctx.globalAlpha = Math.max(0.3, fadeRatio) * (shape.opacity || 1);
+          }
+        } else {
+          ctx.strokeStyle = shape.color || '#000000';
         }
 
         ctx.beginPath();
@@ -857,6 +931,9 @@ export default function Canvas({
             const cy = (shape.start.y + shape.end.y) / 2;
             const w = Math.abs(shape.end.x - shape.start.x) / 2;
             const h = Math.abs(shape.end.y - shape.start.y) / 2;
+
+            // FIX: Ensure diamond path is properly closed
+            ctx.beginPath();
             ctx.moveTo(cx, cy - h);
             ctx.lineTo(cx + w, cy);
             ctx.lineTo(cx, cy + h);
@@ -887,6 +964,25 @@ export default function Canvas({
         ctx.moveTo(drawing.penPoints[0].x, drawing.penPoints[0].y);
         for (let i = 1; i < drawing.penPoints.length; i++) {
           ctx.lineTo(drawing.penPoints[i].x, drawing.penPoints[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      } else if (selectedTool === "laser" && drawing.laserPoints && drawing.laserPoints.length > 0) {
+        // FIX: Update laser preview to use selected color with visibility enhancement
+        ctx.save();
+        const laserColor = getLaserColor(selectedColor);
+        ctx.strokeStyle = laserColor;
+        ctx.lineWidth = strokeWidth + 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalAlpha = opacity / 100;
+        ctx.shadowColor = laserColor;
+        ctx.shadowBlur = 15;
+
+        ctx.beginPath();
+        ctx.moveTo(drawing.laserPoints[0].x, drawing.laserPoints[0].y);
+        for (let i = 1; i < drawing.laserPoints.length; i++) {
+          ctx.lineTo(drawing.laserPoints[i].x, drawing.laserPoints[i].y);
         }
         ctx.stroke();
         ctx.restore();
@@ -921,6 +1017,19 @@ export default function Canvas({
           case 'arrow':
             ctx.moveTo(drawing.startPoint.x, drawing.startPoint.y);
             ctx.lineTo(drawing.currentPoint.x, drawing.currentPoint.y);
+            break;
+          case 'diamond':
+            const cx = (drawing.startPoint.x + drawing.currentPoint.x) / 2;
+            const cy = (drawing.startPoint.y + drawing.currentPoint.y) / 2;
+            const w = Math.abs(drawing.currentPoint.x - drawing.startPoint.x) / 2;
+            const h = Math.abs(drawing.currentPoint.y - drawing.startPoint.y) / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - h);
+            ctx.lineTo(cx + w, cy);
+            ctx.lineTo(cx, cy + h);
+            ctx.lineTo(cx - w, cy);
+            ctx.closePath();
             break;
         }
         ctx.stroke();
@@ -958,7 +1067,7 @@ export default function Canvas({
     }
 
     ctx.restore();
-  }, [canvasBackgroundColor, panning.panOffset, shapes, drawing, selectedTool, selectedColor, strokeWidth, opacity, eraser, selection, images.loadedImages]);
+  }, [canvasBackgroundColor, panning.panOffset, shapes, drawing, selectedTool, selectedColor, strokeWidth, opacity, eraser, selection, images.loadedImages, getLaserColor]);
 
   // ==================== SOCKET SETUP ====================
 
