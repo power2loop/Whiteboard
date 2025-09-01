@@ -38,6 +38,13 @@ function App() {
   const canvasSaveRef = useRef(null);
   const canvasExportRef = useRef(null);
 
+  const onLeaveRoom = () => {
+  // Example:
+  socket.emit("leaveRoom", roomId);
+  setRoomId(null);
+};
+
+
   // Collaboration states
   const [roomId, setRoomId] = useState("");
   const [isConnected, setIsConnected] = useState(false);
@@ -310,21 +317,82 @@ function App() {
       />
 
       {/* Connection status indicator */}
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        background: isConnected ? '#10b981' : '#ef4444',
-        color: 'white',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '12px',
-        zIndex: 1000
-      }}>
-        {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
-        {roomId && ` | Room: ${roomId.slice(0, 8)}`}
-        {roomUsers.length > 0 && ` | Users: ${roomUsers.length}`}
-      </div>
+      <div
+  style={{
+    position: "fixed",
+    bottom: "16px",
+    right: "16px",
+    background: "#fff",
+    color: "#111827",
+    padding: "8px 14px",
+    borderRadius: "9999px",
+    fontSize: "13px",
+    fontWeight: "500",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+    border: "1px solid #e5e7eb",
+    zIndex: 1000,
+  }}
+>
+  {/* Connection Status */}
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "4px",
+      fontWeight: 600,
+      color: isConnected ? "#059669" : "#dc2626",
+    }}
+  >
+    <span
+      style={{
+        width: "8px",
+        height: "8px",
+        borderRadius: "50%",
+        backgroundColor: isConnected ? "#10b981" : "#ef4444",
+      }}
+    />
+    {isConnected ? "Connected" : "Disconnected"}
+  </span>
+
+  {/* Room Info */}
+  {roomId && (
+    <span style={{ color: "#4b5563" }}>
+      | Room: <strong>{roomId.slice(0, 8)}</strong>
+    </span>
+  )}
+
+  {/* Users */}
+  {roomUsers.length > 0 && (
+    <span style={{ color: "#4b5563" }}>| Users: {roomUsers.length}</span>
+  )}
+
+  {/* Leave Room Button */}
+  {roomId && (
+    <button
+      onClick={onLeaveRoom} // <-- pass function as prop
+      style={{
+        marginLeft: "8px",
+        padding: "4px 10px",
+        background: "#ef4444",
+        color: "white",
+        border: "none",
+        borderRadius: "6px",
+        fontSize: "12px",
+        fontWeight: "500",
+        cursor: "pointer",
+        transition: "background 0.2s",
+      }}
+      onMouseEnter={(e) => (e.target.style.background = "#dc2626")}
+      onMouseLeave={(e) => (e.target.style.background = "#ef4444")}
+    >
+      Leave
+    </button>
+  )}
+</div>
+
     </div>
   );
 }
