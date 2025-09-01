@@ -1,4 +1,3 @@
-// CollaborationModal.jsx
 import React, { useState, useEffect } from "react";
 import "./CollaborationModal.css";
 import { IoCopyOutline, IoCheckmarkOutline, IoStopCircleOutline } from "react-icons/io5";
@@ -8,47 +7,73 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
   const [copied, setCopied] = useState(false);
   const [collaborationStarted, setCollaborationStarted] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState(roomId || "");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const generateRoomId = () => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   };
 
   const handleStartCollaboration = () => {
+    if (isConnecting) return;
+
+    setIsConnecting(true);
+
     // Generate room ID if not exists
-    if (!currentRoomId) {
-      const newRoomId = generateRoomId();
+    let newRoomId = currentRoomId;
+    if (!newRoomId) {
+      newRoomId = generateRoomId();
       setCurrentRoomId(newRoomId);
       setRoomId(newRoomId);
     }
-    
-    // Toggle collaboration state
+
+    // Join room via socket
+    if (socket) {
+      socket.emit('joinRoom', {
+        roomId: newRoomId,
+        userInfo: {
+          userId: user?.uid || socket.id,
+          name: user?.displayName || userName || `User ${socket.id?.slice(0, 6)}`,
+          color: "#000000"
+        }
+      });
+
+      // Update URL
+      const newUrl = `${window.location.origin}${window.location.pathname}?room=${newRoomId}`;
+      window.history.pushState(null, '', newUrl);
+    }
+
     setCollaborationStarted(true);
-    
-    // Here you can add socket.io logic later
-    console.log("Collaboration started!");
+    setIsConnecting(false);
+    console.log("Collaboration started for room:", newRoomId);
   };
 
   const handleStopCollaboration = () => {
-    // Toggle collaboration state back
+    // Leave room via socket
+    if (socket && currentRoomId) {
+      socket.emit('leaveRoom');
+    }
+
+    // Clear states
     setCollaborationStarted(false);
-    
-    // Clear room ID
     setCurrentRoomId("");
     setRoomId("");
-    
-    // Here you can add socket.io cleanup logic later
+
+    // Clear URL
+    window.history.pushState(null, '', window.location.pathname);
+
     console.log("Collaboration stopped!");
   };
 
   const copyLink = async () => {
     const collaborationLink = `${window.location.origin}${window.location.pathname}?room=${currentRoomId}`;
-    
+
     try {
       await navigator.clipboard.writeText(collaborationLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy link:', err);
+      // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = collaborationLink;
       document.body.appendChild(textArea);
@@ -64,94 +89,79 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
-    if (roomFromUrl && !collaborationStarted) {
+
+    if (roomFromUrl && !collaborationStarted && socket) {
       setCurrentRoomId(roomFromUrl);
       setRoomId(roomFromUrl);
-      setCollaborationStarted(true);
+      handleStartCollaboration();
     }
-  }, []);
+  }, [socket]);
 
   return (
-    <div className="collaboration-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="collaboration-modal">
-        <div className="modal-header">
-          <h2>Live collaboration</h2>
-          <button className="close-btn" onClick={onClose}>×</button>
+    <div className="collaboration-modal-overlay" onClick={onClose}>
+      <div className="collaboration-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="collaboration-modal-header">
+          <h2>Live Collaboration</h2>
+          <button className="close-button" onClick={onClose}>×</button>
         </div>
 
-        <div className="modal-content">
-          <div className="form-group">
-            <label>Your name</label>
-            <input
-              type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="Your name"
-              className="name-input"
-              disabled={collaborationStarted}
-            />
-          </div>
+        <div className="collaboration-modal-content">
+          {!collaborationStarted ? (
+            <>
+              <p>Start a live collaboration session to draw together with others in real-time.</p>
 
-          <div className="form-group">
-            <label>Link</label>
-            <div className="link-container">
-              <input
-                type="text"
-                value={currentRoomId || "Room will be generated when you start"}
-                readOnly
-                className="link-input"
-              />
-              <button 
-                className="copy-btn" 
-                onClick={copyLink}
-                disabled={!currentRoomId}
-              >
-                {copied ? <IoCheckmarkOutline /> : <IoCopyOutline />}
-                {copied ? "Copied!" : "Copy link"}
-              </button>
-            </div>
-          </div>
-
-          {collaborationStarted && (
-            <div className="collaboration-status">
-              <div className="status-indicator">
-                <div className="status-dot active"></div>
-                <span>Collaboration active</span>
+              <div className="user-name-input">
+                <label>Your Name:</label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="Enter your name"
+                />
               </div>
-            </div>
+
+              <button
+                className="start-collaboration-btn"
+                onClick={handleStartCollaboration}
+                disabled={isConnecting}
+              >
+                {isConnecting ? 'Starting...' : 'Start Collaboration'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="collaboration-active">
+                <h3>🟢 Collaboration Active</h3>
+                <p>Room ID: <code>{currentRoomId}</code></p>
+
+                <div className="share-link">
+                  <button onClick={copyLink} className="copy-link-btn">
+                    {copied ? <IoCheckmarkOutline /> : <IoCopyOutline />}
+                    {copied ? 'Copied!' : 'Copy Invite Link'}
+                  </button>
+                </div>
+
+                <div className="collaboration-info">
+                  <p>Share the invite link with others to collaborate in real-time.</p>
+                  <p>🔒 End-to-end encrypted and private.</p>
+                </div>
+
+                <button
+                  className="stop-collaboration-btn"
+                  onClick={handleStopCollaboration}
+                >
+                  <IoStopCircleOutline />
+                  Stop Collaboration
+                </button>
+              </div>
+            </>
           )}
-
-          <div className="privacy-notice">
-            <span className="lock-icon">🔒</span>
-            <p>
-              Don't worry, the session is end-to-end encrypted, and fully private. 
-              Not even our server can see what you draw.
-            </p>
-          </div>
-
-          <div className="session-info">
-            <p>
-              Stopping the session will disconnect you from the room, but you'll be able to continue 
-              working with the scene, locally. Note that this won't affect other people, and they'll still be 
-              able to collaborate on their version.
-            </p>
-          </div>
         </div>
 
-        <div className="modal-actions">
-          {collaborationStarted ? (
-            <button className="stop-btn" onClick={handleStopCollaboration}>
-              <IoStopCircleOutline />
-              Stop session
-            </button>
-          ) : (
-            <button 
-              className="start-btn" 
-              onClick={handleStartCollaboration}
-              disabled={!userName.trim()}
-            >
-              Start Collaboration
-            </button>
+        <div className="collaboration-modal-footer">
+          <p>Don't worry, the session is end-to-end encrypted, and fully private. Not even our server can see what you draw.</p>
+          {collaborationStarted && (
+            <p><small>Stopping the session will disconnect you from the room, but you'll be able to continue working with the scene, locally.</small></p>
           )}
         </div>
       </div>

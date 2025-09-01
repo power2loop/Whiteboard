@@ -1,45 +1,228 @@
 import express from "express";
-import { createServer } from "http";
+import http from "http";
 import { Server } from "socket.io";
-import cors from "cors";
-import boardsRoutes from "./src/routes/boards.route.js";
-import { initializeWhiteboardSocket } from "./src/sockets/whiteboard.socket.js";
 
 const app = express();
-const server = createServer(app);
-
-// **IMPORTANT**: Fix the CORS configuration
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "http://localhost:3000"], // Your frontend URL
-    methods: ["GET", "POST"],
-    allowedHeaders: ["*"],
-    credentials: true
-  },
-  allowEIO3: true, // Allow Engine.IO v3 clients
-  transports: ['websocket', 'polling']
-});
-
 const PORT = 3000;
 
-// Express CORS middleware
-app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000"],
-  credentials: true,
-  allowedHeaders: ["*"]
-}));
+// Store room data
+const rooms = new Map();
 
+// Middleware to parse JSON
 app.use(express.json());
-app.use("/api/boards", boardsRoutes);
 
+// Basic route
 app.get("/", (req, res) => {
-  res.send("🚀 Collaborative Whiteboard Server is running!");
+    res.send("🚀 Express + Socket.IO server is running!");
 });
 
-// Initialize Socket.IO
-initializeWhiteboardSocket(io);
+// Create HTTP server & attach Socket.IO
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    // Optimize socket.io performance
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📡 Socket.IO server ready for connections`);
+// Handle socket connections
+io.on("connection", (socket) => {
+    console.log("🟢 User connected:", socket.id);
+
+    // User joins a room
+    socket.on("joinRoom", (data) => {
+        const { roomId, userInfo } = data;
+        socket.join(roomId);
+
+        // Store user info
+        socket.userId = userInfo?.userId || socket.id;
+        socket.userName = userInfo?.name || `User ${socket.id.slice(0, 6)}`;
+        socket.userColor = userInfo?.color || "#000000";
+        socket.currentRoom = roomId;
+
+        // Initialize room if it doesn't exist
+        if (!rooms.has(roomId)) {
+            rooms.set(roomId, {
+                users: new Map(),
+                canvasState: []
+            });
+        }
+
+        const room = rooms.get(roomId);
+        room.users.set(socket.id, {
+            id: socket.userId,
+            name: socket.userName,
+            color: socket.userColor,
+            socketId: socket.id
+        });
+
+        console.log(`✅ ${socket.userName} (${socket.id}) joined room ${roomId}`);
+
+        // Send current canvas state to new user (only to this user)
+        if (room.canvasState.length > 0) {
+            socket.emit("canvasState", room.canvasState);
+        }
+
+        // Notify others in room about new user
+        socket.to(roomId).emit("userJoined", {
+            userId: socket.userId,
+            name: socket.userName,
+            color: socket.userColor
+        });
+
+        // Send room info to user
+        socket.emit("roomInfo", {
+            roomId,
+            users: Array.from(room.users.values())
+        });
+    });
+
+    // Optimized drawing events with batching
+    let drawingBuffer = [];
+    let broadcastTimeout = null;
+
+    socket.on("drawing", (data) => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        if (!room) return;
+
+        // Add drawing to room's canvas state
+        const drawingData = {
+            ...data,
+            userId: socket.userId,
+            userName: socket.userName,
+            timestamp: Date.now()
+        };
+
+        // Update canvas state efficiently
+        if (data.tool === 'pen' || data.tool === 'laser') {
+            // For pen/laser, update existing stroke or add new one
+            const existingIndex = room.canvasState.findIndex(item => item.id === data.id);
+            if (existingIndex >= 0) {
+                room.canvasState[existingIndex] = drawingData;
+            } else {
+                room.canvasState.push(drawingData);
+            }
+        } else {
+            // For other tools, just add to state
+            room.canvasState.push(drawingData);
+        }
+
+        // Immediate broadcast for better real-time performance
+        socket.to(socket.currentRoom).emit("drawing", drawingData);
+    });
+
+    // Optimized cursor movement with throttling
+    let lastCursorBroadcast = 0;
+    socket.on("cursorMove", (data) => {
+        if (!socket.currentRoom) return;
+
+        const now = Date.now();
+        // Throttle to max 20 updates per second
+        if (now - lastCursorBroadcast < 50) return;
+        lastCursorBroadcast = now;
+
+        const cursorData = {
+            ...data,
+            userId: socket.userId,
+            name: socket.userName,
+            color: socket.userColor,
+            timestamp: now
+        };
+
+        socket.to(socket.currentRoom).emit("cursorMove", cursorData);
+    });
+
+    // Optimized pen drawing with batching
+    socket.on("penStroke", (data) => {
+        if (!socket.currentRoom) return;
+
+        // Immediate broadcast for pen strokes
+        socket.to(socket.currentRoom).emit("penStroke", {
+            ...data,
+            userId: socket.userId,
+            timestamp: Date.now()
+        });
+    });
+
+    // Handle clear canvas
+    socket.on("clearCanvas", (data) => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        if (room) {
+            room.canvasState = [];
+        }
+
+        socket.to(socket.currentRoom).emit("clearCanvas");
+    });
+
+    // Handle canvas state updates
+    socket.on("updateCanvasState", (canvasState) => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        if (room) {
+            room.canvasState = canvasState;
+            socket.to(socket.currentRoom).emit("canvasState", canvasState);
+        }
+    });
+
+    // Handle user leaving room
+    socket.on("leaveRoom", () => {
+        if (socket.currentRoom) {
+            const room = rooms.get(socket.currentRoom);
+            if (room) {
+                room.users.delete(socket.id);
+
+                // Clean up empty rooms
+                if (room.users.size === 0) {
+                    rooms.delete(socket.currentRoom);
+                }
+            }
+
+            socket.to(socket.currentRoom).emit("userLeft", {
+                userId: socket.userId,
+                name: socket.userName
+            });
+
+            socket.leave(socket.currentRoom);
+            socket.currentRoom = null;
+        }
+    });
+
+    // Disconnect
+    socket.on("disconnect", () => {
+        console.log("🔴 User disconnected:", socket.id);
+
+        if (socket.currentRoom) {
+            const room = rooms.get(socket.currentRoom);
+            if (room) {
+                room.users.delete(socket.id);
+
+                // Clean up empty rooms
+                if (room.users.size === 0) {
+                    rooms.delete(socket.currentRoom);
+                }
+            }
+
+            socket.to(socket.currentRoom).emit("userLeft", {
+                userId: socket.userId,
+                name: socket.userName
+            });
+        }
+
+        io.emit("removeCursor", socket.id);
+    });
+});
+
+// Start server with HTTP
+server.listen(PORT, () => {
+    console.log(`✅ Server running on http://localhost:${PORT}`);
 });

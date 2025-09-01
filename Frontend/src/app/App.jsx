@@ -4,22 +4,16 @@ import Canvas from '../components/Canvas/Canvas';
 import BottomControls from '../components/BottomControls/BottomControls';
 import Topbar from '../components/Topbar/Topbar';
 import Rightbar from '../components/Rightbar/Rightbar';
-import socketService from '../services/socket/socket.service.js';
 import "./App.css";
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import socket from '../services/socket/socket';
 
 function App() {
-  // Collaboration state
-  const [isCollaborating, setIsCollaborating] = useState(false);
-  const [collaborators, setCollaborators] = useState([]);
-  const [currentBoardId, setCurrentBoardId] = useState(null);
-
-  // Tool and drawing states
   const [selectedTool, setSelectedTool] = useState("hand");
   const [selectedColor, setSelectedColor] = useState("#000000");
   const [showToolbar, setShowToolbar] = useState(false);
 
-  // Toolbar properties
+  // Add new states for toolbar properties
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokeStyle, setStrokeStyle] = useState("solid");
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
@@ -44,132 +38,75 @@ function App() {
   const canvasSaveRef = useRef(null);
   const canvasExportRef = useRef(null);
 
-  // Enhanced collaboration handler
-  const handleStartCollaboration = useCallback((boardId, userId, userName) => {
-    console.log('🚀 Starting collaboration:', { boardId, userId, userName });
-    
-    // Connect to socket
-    socketService.connect();
-    
-    // Wait for connection then join room
-    setTimeout(() => {
-      if (socketService.joinRoom(boardId, userId, userName)) {
-        setIsCollaborating(true);
-        setCurrentBoardId(boardId);
-        
-        // Set up socket event listeners
-        socketService.onBoardState((data) => {
-          console.log('📊 Received board state:', data);
-          if (canvasLoadRef.current && data.shapes) {
-            canvasLoadRef.current({ shapes: data.shapes });
-          }
-          setCollaborators(data.collaborators || []);
-        });
-        
-        socketService.onUserJoined((data) => {
-          console.log('👋 User joined:', data.user.name);
-          setCollaborators(data.collaborators);
-        });
-        
-        socketService.onUserLeft((data) => {
-          console.log('👋 User left:', data.user.name);
-          setCollaborators(data.collaborators);
-        });
-        
-        socketService.onShapesUpdate((data) => {
-          console.log('🎨 Shapes updated by:', data.updatedBy || 'collaborator');
-          if (canvasLoadRef.current) {
-            canvasLoadRef.current({ shapes: data.shapes });
-          }
-        });
-        
-        socketService.onCanvasClear(() => {
-          console.log('🧹 Canvas cleared by collaborator');
-          if (canvasClearRef.current) {
-            canvasClearRef.current();
-          }
-        });
+  // Collaboration states
+  const [roomId, setRoomId] = useState("");
+  const [isConnected, setIsConnected] = useState(false);
+  const [roomUsers, setRoomUsers] = useState([]);
 
-        // Additional collaboration events
-        socketService.onDrawingStart((data) => {
-          console.log('🎨 Remote drawing started:', data);
-        });
+  // NEW: Image trigger function state
+  const [imageTriggerFunc, setImageTriggerFunc] = useState(null);
 
-        socketService.onDrawingUpdate((data) => {
-          console.log('🎨 Remote drawing updated');
-        });
+  // Socket connection management
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log('Connected to server:', socket.id);
+      setIsConnected(true);
+    };
 
-        socketService.onDrawingEnd((data) => {
-          console.log('🎨 Remote drawing ended:', data);
-        });
-      }
-    }, 1000);
+    const handleDisconnect = () => {
+      console.log('Disconnected from server');
+      setIsConnected(false);
+    };
+
+    const handleRoomInfo = (data) => {
+      console.log('Room info received:', data);
+      setRoomUsers(data.users || []);
+    };
+
+    const handleUserJoined = (userData) => {
+      console.log('User joined:', userData);
+      setRoomUsers(prev => [...prev.filter(u => u.id !== userData.userId), userData]);
+    };
+
+    const handleUserLeft = (userData) => {
+      console.log('User left:', userData);
+      setRoomUsers(prev => prev.filter(u => u.id !== userData.userId));
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('roomInfo', handleRoomInfo);
+    socket.on('userJoined', handleUserJoined);
+    socket.on('userLeft', handleUserLeft);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('roomInfo', handleRoomInfo);
+      socket.off('userJoined', handleUserJoined);
+      socket.off('userLeft', handleUserLeft);
+    };
   }, []);
 
-  // Check for collaboration URL parameters on load
+  // Auto-join room from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const boardId = urlParams.get('boardId');
-    
-    if (boardId) {
-      console.log('🔗 Auto-joining collaboration from URL:', boardId);
-      
-      // Get user info (you could also check if user is logged in)
-      const userName = prompt("Enter your name to join this whiteboard collaboration:") || "Anonymous User";
-      const userId = `guest_${Date.now()}_${Math.random()}`;
-      
-      // Start collaboration after a short delay
-      setTimeout(() => {
-        handleStartCollaboration(boardId, userId, userName);
-      }, 500);
-      
-      // Clean URL after joining (optional)
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [handleStartCollaboration]);
+    const roomFromUrl = urlParams.get('room');
 
-  // Enhanced collaboration callbacks
-  const handleShapesChange = useCallback((shapes) => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      console.log('📤 Emitting shapes update, count:', shapes.length);
-      socketService.emitShapesUpdate(shapes);
+    if (roomFromUrl && !roomId) {
+      setRoomId(roomFromUrl);
+      // Auto-join room
+      socket.emit('joinRoom', {
+        roomId: roomFromUrl,
+        userInfo: {
+          userId: socket.id,
+          name: `User ${socket.id?.slice(0, 6) || 'Unknown'}`,
+          color: selectedColor
+        }
+      });
     }
-  }, [isCollaborating]);
+  }, [roomId, selectedColor]);
 
-  const handleDrawingStart = useCallback((data) => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      console.log('📤 Emitting drawing start:', data.tool);
-      socketService.emitDrawingStart(data);
-    }
-  }, [isCollaborating]);
-
-  const handleDrawingUpdate = useCallback((data) => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      socketService.emitDrawingUpdate(data);
-    }
-  }, [isCollaborating]);
-
-  const handleDrawingEnd = useCallback((data) => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      console.log('📤 Emitting drawing end:', data.tool);
-      socketService.emitDrawingEnd(data);
-    }
-  }, [isCollaborating]);
-
-  const handleCanvasClearCollaboration = useCallback(() => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      console.log('📤 Emitting canvas clear');
-      socketService.emitCanvasClear();
-    }
-  }, [isCollaborating]);
-
-  const handleCursorMove = useCallback((x, y) => {
-    if (isCollaborating && socketService.isSocketConnected()) {
-      socketService.emitCursorMove(x, y);
-    }
-  }, [isCollaborating]);
-
-  // Tool selection handler
   const handleToolSelect = (tool) => {
     setSelectedTool(tool);
     if (["hand", "select", "image", "eraser"].includes(tool)) {
@@ -179,7 +116,18 @@ function App() {
     }
   };
 
-  // Undo/Redo handlers
+  // NEW: Handle image button click from Topbar
+  const handleImageClick = () => {
+    if (imageTriggerFunc) {
+      imageTriggerFunc(); // Trigger the file input in Canvas
+    }
+  };
+
+  // NEW: Receive the image trigger function from Canvas
+  const handleImageTrigger = (triggerFunction) => {
+    setImageTriggerFunc(() => triggerFunction);
+  };
+
   const handleUndo = () => {
     if (undoFunctionRef.current) {
       undoFunctionRef.current();
@@ -192,7 +140,6 @@ function App() {
     }
   };
 
-  // Canvas action handlers
   const handleCopyCanvas = async () => {
     if (canvasCopyRef.current) {
       try {
@@ -211,16 +158,17 @@ function App() {
       try {
         canvasClearRef.current();
         console.log('Canvas cleared successfully!');
-        
-        // Emit clear event for collaboration
-        handleCanvasClearCollaboration();
+
+        // Broadcast clear to room if connected
+        if (roomId && isConnected) {
+          socket.emit('clearCanvas', { roomId });
+        }
       } catch (error) {
         console.error('Failed to clear canvas:', error);
       }
     }
   };
 
-  // Save canvas handler
   const handleSaveCanvas = async () => {
     if (canvasSaveRef.current) {
       try {
@@ -235,7 +183,6 @@ function App() {
     }
   };
 
-  // Export image handler
   const handleExportImage = async () => {
     if (canvasExportRef.current) {
       try {
@@ -250,26 +197,21 @@ function App() {
     }
   };
 
-  // Handle save functions from Canvas
   const handleSaveFunctions = (functions) => {
     canvasSaveRef.current = functions.saveCanvas;
     canvasExportRef.current = functions.exportImage;
   };
 
-  // Handle reset canvas from Sidebar
   const handleResetCanvas = () => {
     handleClearCanvas();
   };
 
-  // Handle help from Sidebar
   const handleShowHelp = () => {
     alert('Help: Use the tools to draw, add text, or insert images. Use Ctrl+Z for undo and Ctrl+Y for redo. Click Save to download your work!');
   };
 
-  // File handling function
   const handleOpenFile = (fileData) => {
     if (fileData.type === 'canvas') {
-      // Handle JSON canvas file
       if (canvasLoadRef.current && fileData.data) {
         try {
           canvasLoadRef.current(fileData.data);
@@ -280,7 +222,6 @@ function App() {
         }
       }
     } else if (fileData.type === 'image') {
-      // Handle image file
       if (canvasAddImageRef.current) {
         try {
           canvasAddImageRef.current(fileData.src, fileData.name);
@@ -293,131 +234,97 @@ function App() {
     }
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (isCollaborating) {
-        socketService.leaveRoom();
-        socketService.disconnect();
-      }
-    };
-  }, [isCollaborating]);
-
-  // Debug collaboration state
-  useEffect(() => {
-    console.log('Collaboration state:', { 
-      isCollaborating, 
-      collaboratorsCount: collaborators.length,
-      currentBoardId,
-      socketConnected: socketService.isSocketConnected()
-    });
-  }, [isCollaborating, collaborators.length, currentBoardId]);
-
   return (
     <div className="app">
-      <div className="layout">
-        <header className="topbar">
-          <Topbar
-            onToolSelect={handleToolSelect}
-            selectedColor={selectedColor}
-            onColorSelect={setSelectedColor}
-          />
-        </header>
-        
-        <aside className="sidebar">
-          <Sidebar
-            onOpenFile={handleOpenFile}
-            onSaveCanvas={handleSaveCanvas}
-            onExportImage={handleExportImage}
-            onResetCanvas={handleResetCanvas}
-            onShowHelp={handleShowHelp}
-          />
-        </aside>
-        
-        <aside className="rightbar">
-          <Rightbar 
-            onStartCollaboration={handleStartCollaboration}
-            isCollaborating={isCollaborating}
-            collaborators={collaborators}
-          />
-        </aside>
-        
-        {showToolbar && (
-          <Toolbar
-            selectedColor={selectedColor}
-            onColorSelect={setSelectedColor}
-            backgroundColor={backgroundColor}
-            onBackgroundColorSelect={setBackgroundColor}
-            strokeWidth={strokeWidth}
-            onStrokeWidthSelect={setStrokeWidth}
-            strokeStyle={strokeStyle}
-            onStrokeStyleSelect={setStrokeStyle}
-            opacity={opacity}
-            onOpacityChange={setOpacity}
-            onCopyCanvas={handleCopyCanvas}
-            onClearCanvas={handleClearCanvas}
-          />
-        )}
-        
-        <main className="canvas">
-          <Canvas
-            selectedTool={selectedTool}
-            onToolChange={setSelectedTool}
-            selectedColor={selectedColor}
-            strokeWidth={strokeWidth}
-            strokeStyle={strokeStyle}
-            backgroundColor={backgroundColor}
-            opacity={opacity}
-            canvasBackgroundColor={canvasBackgroundColor}
-            onUndoFunction={(undoFn) => { undoFunctionRef.current = undoFn; }}
-            onRedoFunction={(redoFn) => { redoFunctionRef.current = redoFn; }}
-            onCanUndo={setCanUndo}
-            onCanRedo={setCanRedo}
-            onCopyFunction={(copyFn) => { canvasCopyRef.current = copyFn; }}
-            onClearFunction={(clearFn) => { canvasClearRef.current = clearFn; }}
-            onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
-            onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
-            onSaveFunction={handleSaveFunctions}
-            
-            // Collaboration props with proper handlers
-            onShapesChange={handleShapesChange}
-            onDrawingStart={handleDrawingStart}
-            onDrawingUpdate={handleDrawingUpdate}
-            onDrawingEnd={handleDrawingEnd}
-            onCanvasClearCollaboration={handleCanvasClearCollaboration}
-            onCursorMove={handleCursorMove}
-            isCollaborating={isCollaborating}
-          />
-        </main>
-        
-        <footer className="bottom-controls">
-          <BottomControls
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-            selectedColor={selectedColor}
-            onColorChange={setSelectedColor}
-            canvasBackgroundColor={canvasBackgroundColor}
-            onCanvasBackgroundColorChange={setCanvasBackgroundColor}
-          />
-        </footer>
+      <Sidebar
+        onOpenFile={handleOpenFile}
+        onSaveCanvas={handleSaveCanvas}
+        onExportImage={handleExportImage}
+        onResetCanvas={handleResetCanvas}
+        onShowHelp={handleShowHelp}
+      />
+
+      <Topbar
+        onToolSelect={handleToolSelect}
+        selectedColor={selectedColor}
+        onColorSelect={setSelectedColor}
+        onImageClick={handleImageClick} // NEW: Pass image click handler
+      />
+
+      {showToolbar && (
+        <Toolbar
+          selectedColor={selectedColor}
+          onColorSelect={setSelectedColor}
+          backgroundColor={backgroundColor}
+          onBackgroundColorSelect={setBackgroundColor}
+          strokeWidth={strokeWidth}
+          onStrokeWidthSelect={setStrokeWidth}
+          strokeStyle={strokeStyle}
+          onStrokeStyleSelect={setStrokeStyle}
+          opacity={opacity}
+          onOpacityChange={setOpacity}
+          onCopyCanvas={handleCopyCanvas}
+          onClearCanvas={handleClearCanvas}
+        />
+      )}
+
+      <Canvas
+        selectedTool={selectedTool}
+        selectedColor={selectedColor}
+        strokeWidth={strokeWidth}
+        strokeStyle={strokeStyle}
+        backgroundColor={backgroundColor}
+        opacity={opacity}
+        canvasBackgroundColor={canvasBackgroundColor}
+        onToolChange={setSelectedTool}
+        onUndoFunction={(undoFn) => { undoFunctionRef.current = undoFn; }}
+        onRedoFunction={(redoFn) => { redoFunctionRef.current = redoFn; }}
+        onCanUndo={setCanUndo}
+        onCanRedo={setCanRedo}
+        onCopyFunction={(copyFn) => { canvasCopyRef.current = copyFn; }}
+        onClearFunction={(clearFn) => { canvasClearRef.current = clearFn; }}
+        onLoadCanvasData={(loadFn) => { canvasLoadRef.current = loadFn; }}
+        onAddImageToCanvas={(addImageFn) => { canvasAddImageRef.current = addImageFn; }}
+        onSaveFunction={handleSaveFunctions}
+        onImageTrigger={handleImageTrigger} // NEW: Pass trigger function receiver
+        socket={socket}
+        roomId={roomId}
+        userColor={selectedColor}
+      />
+
+      <BottomControls
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        selectedColor={selectedColor}
+        onColorChange={setSelectedColor}
+        canvasBackgroundColor={canvasBackgroundColor}
+        onCanvasBackgroundColorChange={setCanvasBackgroundColor}
+      />
+
+      <Rightbar
+        socket={socket}
+        roomId={roomId}
+        setRoomId={setRoomId}
+      />
+
+      {/* Connection status indicator */}
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        background: isConnected ? '#10b981' : '#ef4444',
+        color: 'white',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '12px',
+        zIndex: 1000
+      }}>
+        {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+        {roomId && ` | Room: ${roomId.slice(0, 8)}`}
+        {roomUsers.length > 0 && ` | Users: ${roomUsers.length}`}
       </div>
-      
-      {/* Collaboration status indicator */}
-      {/* {isCollaborating && (
-        <div className="collaboration-indicator">
-          <div className="collaboration-status">
-            <div className="status-dot"></div>
-            <span>Live collaboration active</span>
-            {collaborators.length > 0 && (
-              <span className="collaborators-count-small">
-                {collaborators.length} online
-              </span>
-            )}
-          </div>
-        </div>
-      )} */}
     </div>
   );
 }

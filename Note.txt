@@ -1,81 +1,77 @@
-project-root/
-├── Backend/
-│   ├── package.json
-│   ├── server.js                # Express + Socket.IO (later)
-│   ├── .env                      # PORT, CORS_ORIGIN, etc.
+whiteboard/
+├── Frontend/
+│   ├── node_modules/
 │   ├── src/
-│   │   ├── app.js                # express app factory
-│   │   ├── sockets/
-│   │   │   └── whiteboard.socket.js   # rooms, events (JOIN, PATCH, PRESENCE)
-│   │   ├── routes/
-│   │   │   └── boards.route.js   # save/load/export endpoints
+│   │   ├── app/
+│   │   │   ├── App.css
+│   │   │   └── App.jsx
+│   │   ├── assets/
+│   │   ├── components/
+│   │   │   ├── BottomControls/
+│   │   │   │   ├── BottomControls.css
+│   │   │   │   └── BottomControls.jsx
+│   │   │   ├── Canvas/
+│   │   │   │   ├── hooks/
+│   │   │   │   │   ├── useCanvasDrawing.js
+│   │   │   │   │   ├── useCanvasEvents.js
+│   │   │   │   │   ├── useCanvasImages.js
+│   │   │   │   │   ├── useCanvasPanning.js
+│   │   │   │   │   ├── useCanvasRenderer.js
+│   │   │   │   │   ├── useCanvasSelection.js
+│   │   │   │   │   └── useUndoRedo.js
+│   │   │   │   └── Canvas.jsx
+│   │   │   ├── CollaborationModal/
+│   │   │   │   ├── CollaborationModal.css
+│   │   │   │   └── CollaborationModal.jsx
+│   │   │   ├── Rightbar/
+│   │   │   │   ├── Rightbar.css
+│   │   │   │   └── Rightbar.jsx
+│   │   │   ├── Sidebar/
+│   │   │   │   ├── Sidebar.css
+│   │   │   │   └── Sidebar.jsx
+│   │   │   ├── Textool/
+│   │   │   └── Toolbar/
+│   │   │       ├── Toolbar.css
+│   │   │       └── Toolbar.jsx
+│   │   │   └── Topbar/
+│   │   │       ├── Topbar.css
+│   │   │       └── Topbar.jsx
+│   │   ├── pages/
+│   │   ├── services/
+│   │   │   ├── authentication/
+│   │   │   │   └── auth.js
+│   │   │   └── socket/
+│   │   │       └── socket.js
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── .gitignore
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── README.md
+│   └── vite.config.js
+├── Backend/
+│   ├── node_modules/
+│   ├── src/
 │   │   ├── controllers/
 │   │   │   └── boards.controller.js
+│   │   ├── routes/
+│   │   │   └── boards.route.js
 │   │   ├── services/
-│   │   │   └── boards.service.js # file/db service (stub -> JSON files)
+│   │   │   └── boards.service.js
+│   │   ├── sockets/
+│   │   │   └── whiteboard.socket.js
 │   │   └── utils/
 │   │       └── validate.js
-│   └── tests/
-│       └── boards.test.js
-Frontend
-│── node_modules
-│── src
-│   │── app
-│   │   ├── App.css
-│   │   ├── App.jsx
-│   │
-│   │── assets
-│   │
-│   │── components
-│   │   │── BottomControls
-│   │   │   ├── BottomControls.css
-│   │   │   ├── BottomControls.jsx
-│   │   │
-│   │   │── Canvas
-│   │   │   ├── Canvas.css
-│   │   │   ├── Canvas.jsx
-│   │   │
-│   │   │── Rightbar
-│   │   │   ├── Rightbar.css
-│   │   │   ├── Rightbar.jsx
-│   │   │
-│   │   │── Sidebar
-│   │   │   ├── Sidebar.css
-│   │   │   ├── Sidebar.jsx
-│   │   │
-│   │   │── Texttool
-│   │   │   ├── Texttool.css
-│   │   │   ├── Texttool.jsx
-│   │   │
-│   │   │── Toolbar
-│   │   │   ├── Toolbar.css
-│   │   │   ├── Toolbar.jsx
-│   │   │
-│   │   │── Topbar
-│   │   │   ├── Topbar.css
-│   │   │   ├── Topbar.jsx
-│   │
-│   │── pages
-│   │   │── Board
-│   │   │   ├── BoardPage.jsx
-│   │   │
-│   │   │── Home
-│   │   │   ├── HomePage.jsx
-│   │
-│   │── services
-│   │   │── realtime
-│   │
-│   ├── index.css
-│   ├── main.jsx
-│
-│── .gitignore
-│── eslint.config.js
-│── index.html
-│── package-lock.json
-│── package.json
-│── README.md
-│── vite.config.js
-│── Note.txt
+│   ├── tests/
+│   │   └── boards.test.js
+│   ├── .env
+│   ├── .gitignore
+│   ├── package-lock.json
+│   ├── package.json
+│   └── server.js
+└── notes/
 
 
 

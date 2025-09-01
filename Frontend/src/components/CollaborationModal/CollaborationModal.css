@@ -29,6 +29,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -81,7 +82,8 @@
   font-size: 14px;
 }
 
-.name-input, .link-input {
+.name-input,
+.link-input {
   width: 100%;
   padding: 12px;
   border: 1px solid #d1d5db;
@@ -91,7 +93,8 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.name-input:focus, .link-input:focus {
+.name-input:focus,
+.link-input:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
@@ -291,9 +294,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -312,16 +318,18 @@
     width: 95%;
     margin: 10px;
   }
-  
-  .modal-header, .modal-content, .modal-actions {
+
+  .modal-header,
+  .modal-content,
+  .modal-actions {
     padding-left: 16px;
     padding-right: 16px;
   }
-  
+
   .link-container {
     flex-direction: column;
   }
-  
+
   .copy-btn {
     justify-content: center;
   }
