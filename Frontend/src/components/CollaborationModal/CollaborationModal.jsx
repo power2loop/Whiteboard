@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import "./CollaborationModal.css";
 import { IoCopyOutline, IoCheckmarkOutline, IoStopCircleOutline } from "react-icons/io5";
+import './CollaborationModal.css';
 
 const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
   const [userName, setUserName] = useState(user?.displayName || "");
