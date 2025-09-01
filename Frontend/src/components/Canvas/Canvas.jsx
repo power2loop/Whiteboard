@@ -213,7 +213,9 @@ export default function Canvas({
     const x = e.clientX - rect.left - panning.panOffset.x;
     const y = e.clientY - rect.top - panning.panOffset.y;
 
+    // FIX: Save history BEFORE adding image
     saveToHistory(shapes);
+
     const imageId = `img_${Date.now()}_${Math.random()}`;
 
     const newImg = new Image();
@@ -290,6 +292,9 @@ export default function Canvas({
     drawing.setPenPoints(prev => [...prev, point]);
 
     if (isEnd) {
+      // FIX: Save history BEFORE adding pen stroke
+      saveToHistory(shapes);
+
       const newShape = {
         id: currentStrokeIdRef.current,
         tool: 'pen',
@@ -306,7 +311,7 @@ export default function Canvas({
       lastPointRef.current = null;
       currentStrokeIdRef.current = null;
     }
-  }, [selectedTool, selectedColor, strokeWidth, opacity, drawing, panning.panOffset, broadcastDrawingImmediate]);
+  }, [selectedTool, selectedColor, strokeWidth, opacity, drawing, panning.panOffset, broadcastDrawingImmediate, shapes, saveToHistory]);
 
   // ==================== HELPER FUNCTIONS FOR ERASER ====================
 
@@ -592,6 +597,9 @@ export default function Canvas({
     } else if (selectedTool === 'laser') {
       // FIX: Add laser completion logic with expiration and dynamic color
       if (drawing.laserPoints && drawing.laserPoints.length > 0) {
+        // FIX: Save history BEFORE adding laser
+        saveToHistory(shapes);
+
         const newShape = {
           id: currentStrokeIdRef.current,
           tool: 'laser',
@@ -616,6 +624,9 @@ export default function Canvas({
         requestAnimationFrame(redrawCanvas);
       }
     } else if (SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
+      // FIX: Save history BEFORE adding shape
+      saveToHistory(shapes);
+
       const newShape = {
         id: Date.now() + Math.random(),
         tool: selectedTool,
@@ -639,7 +650,7 @@ export default function Canvas({
       selection.finishSelection();
       requestAnimationFrame(redrawCanvas);
     }
-  }, [selectedTool, drawing, selectedColor, backgroundColor, strokeWidth, strokeStyle, opacity, panning.panOffset, broadcastDrawingImmediate, drawDirectlyOnCanvas, eraser, selection]);
+  }, [selectedTool, drawing, selectedColor, backgroundColor, strokeWidth, strokeStyle, opacity, panning.panOffset, broadcastDrawingImmediate, drawDirectlyOnCanvas, eraser, selection, shapes, saveToHistory]);
 
   // ==================== SOCKET EVENT HANDLERS ====================
 
@@ -1104,6 +1115,9 @@ export default function Canvas({
   // Text submission
   const handleTextSubmit = useCallback(() => {
     if (textInput.value.trim()) {
+      // FIX: Save history BEFORE adding text
+      saveToHistory(shapes);
+
       const newTextShape = {
         id: Date.now() + Math.random(),
         tool: "text",
@@ -1127,7 +1141,7 @@ export default function Canvas({
       value: "",
       fontSize: 16
     });
-  }, [textInput, selectedColor, opacity, broadcastDrawingImmediate]);
+  }, [textInput, selectedColor, opacity, broadcastDrawingImmediate, shapes, saveToHistory]);
 
   // Clear function for parent
   const clearAllCanvas = useCallback(() => {

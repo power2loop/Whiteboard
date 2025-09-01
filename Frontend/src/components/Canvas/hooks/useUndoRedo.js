@@ -1,66 +1,78 @@
 import { useState, useCallback, useEffect } from 'react';
 
 export default function useUndoRedo(shapes, setShapes, onUndoFunction, onRedoFunction, onCanUndo, onCanRedo) {
-    const [undoHistory, setUndoHistory] = useState([]);
-    const [redoHistory, setRedoHistory] = useState([]);
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
 
-    // Save current state to history
-    const saveToHistory = useCallback((currentState) => {
-        setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(currentState))]);
-        setRedoHistory([]); // Clear redo history when new action is performed
-    }, []);
+    // Save state to history
+    const saveToHistory = useCallback((currentShapes) => {
+        if (!Array.isArray(currentShapes)) return;
 
-    // Undo function with selection clearing callback
-    const undo = useCallback((clearSelectionCallback) => {
-        if (undoHistory.length === 0) return;
+        const newSnapshot = JSON.parse(JSON.stringify(currentShapes));
 
-        const previousState = undoHistory[undoHistory.length - 1];
-        setRedoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
-        setShapes(previousState);
-        setUndoHistory(prev => prev.slice(0, -1));
+        setHistory(prev => {
+            // Remove any future history beyond current index
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push(newSnapshot);
 
-        // Clear selection when undoing
-        if (clearSelectionCallback) {
-            clearSelectionCallback();
+            // Keep only last 50 entries
+            if (newHistory.length > 50) {
+                return newHistory.slice(-50);
+            }
+            return newHistory;
+        });
+
+        setHistoryIndex(prev => prev + 1);
+
+        console.log(`Saved state with ${currentShapes.length} shapes`);
+    }, [historyIndex]);
+
+    // Undo function
+    const undo = useCallback(() => {
+        if (historyIndex < 0) return;
+
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+
+        if (newIndex >= 0) {
+            const previousState = history[newIndex];
+            setShapes(previousState);
+            console.log(`Undo: Restored ${previousState.length} shapes`);
+        } else {
+            // Go to empty state
+            setShapes([]);
+            console.log('Undo: Cleared canvas');
         }
-    }, [undoHistory, shapes, setShapes]);
+    }, [history, historyIndex, setShapes]);
 
-    // Redo function with selection clearing callback
-    const redo = useCallback((clearSelectionCallback) => {
-        if (redoHistory.length === 0) return;
+    // Redo function
+    const redo = useCallback(() => {
+        if (historyIndex >= history.length - 1) return;
 
-        const nextState = redoHistory[redoHistory.length - 1];
-        setUndoHistory(prev => [...prev, JSON.parse(JSON.stringify(shapes))]);
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+
+        const nextState = history[newIndex];
         setShapes(nextState);
-        setRedoHistory(prev => prev.slice(0, -1));
+        console.log(`Redo: Restored ${nextState.length} shapes`);
+    }, [history, historyIndex, setShapes]);
 
-        // Clear selection when redoing
-        if (clearSelectionCallback) {
-            clearSelectionCallback();
-        }
-    }, [redoHistory, shapes, setShapes]);
-
-    // Clear all history (useful for complete canvas clear)
+    // Clear history
     const clearHistory = useCallback(() => {
-        setUndoHistory([]);
-        setRedoHistory([]);
+        setHistory([]);
+        setHistoryIndex(-1);
     }, []);
 
-    // Check if undo/redo is available
-    const canUndo = undoHistory.length > 0;
-    const canRedo = redoHistory.length > 0;
+    // Can undo/redo
+    const canUndo = historyIndex >= 0;
+    const canRedo = historyIndex < history.length - 1;
 
-    // Expose undo/redo functions to parent component
+    // Pass functions to parent
     useEffect(() => {
-        if (onUndoFunction) {
-            onUndoFunction(undo);
-        }
-        if (onRedoFunction) {
-            onRedoFunction(redo);
-        }
+        if (onUndoFunction) onUndoFunction(undo);
+        if (onRedoFunction) onRedoFunction(redo);
     }, [undo, redo, onUndoFunction, onRedoFunction]);
 
-    // Provide undo/redo availability to parent
     useEffect(() => {
         if (onCanUndo) onCanUndo(canUndo);
         if (onCanRedo) onCanRedo(canRedo);
