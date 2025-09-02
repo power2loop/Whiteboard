@@ -1424,19 +1424,24 @@ export default function Canvas({
             }
           }}
           style={{
-            position: 'absolute',
-            left: textInput.x + panning.panOffset.x,
-            top: textInput.y + panning.panOffset.y,
-            fontSize: `${textInput.fontSize}px`,
-            color: selectedColor,
-            background: 'transparent',
-            border: '1px dashed #ccc',
-            outline: 'none',
-            resize: 'none',
-            zIndex: 1000,
-            minWidth: '100px',
-            minHeight: `${textInput.fontSize * 1.2}px`,
-          }}
+  position: 'absolute',
+  left: textInput.x + panning.panOffset.x,
+  top: textInput.y + panning.panOffset.y,
+  fontSize: `${textInput.fontSize}px`,
+  color: selectedColor,
+  background: '#ffffff4e',
+  borderRadius: '8px',
+  outline: 'none',
+  resize: 'both', // clean resize
+  zIndex: 1000,
+  Width: '120px',
+  Height: `${textInput.fontSize * 1.4}px`,
+  padding: '6px 10px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  transition: 'all 0.25s ease-in-out',
+  animation: 'fadeInScale 0.25s ease-out',
+}}
+
           placeholder="Type..."
           autoFocus
         />

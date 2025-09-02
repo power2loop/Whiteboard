@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { MdArrowRightAlt, MdOutlineCircle } from "react-icons/md";
 import { FaMinus } from "react-icons/fa";
-import { FaRegHandPaper } from "react-icons/fa";
 import { FaRegSquare } from "react-icons/fa6";
 import { LuTriangle, LuPencil, LuEraser } from "react-icons/lu";
 import { RiFontColor } from "react-icons/ri";
