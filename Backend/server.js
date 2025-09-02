@@ -1,34 +1,24 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import path from "path";
+import { fileURLToPath } from 'url';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Store room data
 const rooms = new Map();
 
-
 // Middleware to parse JSON
 app.use(express.json());
 
-
 // Serve static files from Frontend build
 app.use(express.static(path.join(__dirname, '../Frontend/dist')));
-
-// Your existing socket.io code here...
-// (all the socket handling code from your previous server.js)
-
-// Catch-all handler for React routing
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../Frontend/dist/index.html'));
-});
-
-
-// Basic route
-app.get("/", (req, res) => {
-    res.send("🚀 Express + Socket.IO server is running!");
-});
 
 // Create HTTP server & attach Socket.IO
 const server = http.createServer(app);
@@ -132,7 +122,7 @@ io.on("connection", (socket) => {
         socket.to(socket.currentRoom).emit("drawing", drawingData);
     });
 
-    // 🔥 NEW: Handle collaborative eraser operations
+    // Handle collaborative eraser operations
     socket.on("shapes-erased", (data) => {
         if (!socket.currentRoom) return;
 
@@ -213,7 +203,7 @@ io.on("connection", (socket) => {
         }
     });
 
-    // 🔥 NEW: Handle shape additions (for better state management)
+    // Handle shape additions (for better state management)
     socket.on("shape-added", (data) => {
         if (!socket.currentRoom) return;
 
@@ -289,7 +279,7 @@ io.on("connection", (socket) => {
         io.emit("removeCursor", socket.id);
     });
 
-    // 🔥 NEW: Debug endpoint to check room states (optional)
+    // Debug endpoint to check room states (optional)
     socket.on("getRoomState", () => {
         if (!socket.currentRoom) return;
 
@@ -302,7 +292,7 @@ io.on("connection", (socket) => {
     });
 });
 
-// 🔥 NEW: Optional REST endpoint to get room info
+// Optional REST endpoint to get room info
 app.get("/rooms", (req, res) => {
     const roomInfo = Array.from(rooms.entries()).map(([roomId, room]) => ({
         roomId,
@@ -318,6 +308,11 @@ app.get("/rooms", (req, res) => {
         totalRooms: rooms.size,
         rooms: roomInfo
     });
+});
+
+// Catch-all handler for React routing (MUST be after API routes)
+app.get('*splat', (req, res) => {
+    res.sendFile(path.join(__dirname, '../Frontend/dist/index.html'));
 });
 
 // Start server with HTTP
