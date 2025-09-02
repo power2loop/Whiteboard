@@ -157,3 +157,5 @@ Manage canvas history and undo/redo operations:
 -Undo/redo operations with selection clearing callbacks
 -History validation (canUndo, canRedo availability checks)
 -Parent component integration via callback exposure
+
+z
