@@ -51,6 +51,7 @@ whiteboard/
 │   ├── package.json
 │   ├── README.md
 │   └── vite.config.js
+
 ├── Backend/
 │   ├── node_modules/
 │   ├── src/
