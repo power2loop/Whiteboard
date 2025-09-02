@@ -9,12 +9,16 @@ import { GrGroup } from "react-icons/gr";
 import { FiHelpCircle } from "react-icons/fi";
 import { TbHttpDelete } from "react-icons/tb";
 import { IoImageOutline } from "react-icons/io5"; // NEW: Import image icon
+import CollaborationModal from '../CollaborationModal/CollaborationModal';
 
 const Sidebar = ({
   onSaveCanvas,
   onExportImage,
   onResetCanvas,
   onShowHelp,
+  socket,
+  roomId,
+  setRoomId,
   onImageClick // NEW: Add image click handler prop
 }) => {
   const [open, setOpen] = useState(false);
@@ -24,6 +28,8 @@ const Sidebar = ({
     setOpen(!open);
   };
 
+  const [user, setUser] = useState(null);
+  const [showCollaborationModal, setShowCollaborationModal] = useState(false);
 
   // NEW: Handle image button click (same as Topbar)
   const handleImageClick = () => {
@@ -79,10 +85,8 @@ const Sidebar = ({
     setOpen(false);
   };
 
-  // Handle Live Collaboration (placeholder)
-  const handleLiveCollaboration = () => {
-    alert('Live collaboration feature coming soon!');
-    setOpen(false);
+  const handleShare = () => {
+    setShowCollaborationModal(true);
   };
 
   // Close when clicking outside
@@ -127,7 +131,7 @@ const Sidebar = ({
               <span>Export image...</span>
             </li>
 
-            <li onClick={handleLiveCollaboration}>
+            <li onClick={handleShare} style={{ color: "green", fontWeight: 400 }}>
               <GrGroup />
               <span>Live collaboration...</span>
             </li>
@@ -143,6 +147,16 @@ const Sidebar = ({
             </li>
           </ul>
         </div>
+      )}
+
+      {showCollaborationModal && (
+        <CollaborationModal
+          user={user}
+          socket={socket}
+          roomId={roomId}
+          setRoomId={setRoomId}
+          onClose={() => setShowCollaborationModal(false)}
+        />
       )}
     </div>
   );

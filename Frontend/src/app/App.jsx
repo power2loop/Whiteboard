@@ -5,7 +5,7 @@ import BottomControls from '../components/BottomControls/BottomControls';
 import Topbar from '../components/Topbar/Topbar';
 import Rightbar from '../components/Rightbar/Rightbar';
 import "./App.css";
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import socket from '../services/socket/socket';
 
 function App() {
@@ -134,10 +134,11 @@ function App() {
     }
   };
 
-  // Receive the image trigger function from Canvas
-  const handleImageTrigger = (triggerFunction) => {
+  // FIXED: Receive the image trigger function from Canvas with useCallback
+  const handleImageTrigger = useCallback((triggerFunction) => {
     setImageTriggerFunc(() => triggerFunction);
-  };
+  }, []);
+
 
   const handleUndo = () => {
     if (undoFunctionRef.current) {

@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, useLayoutEffect } from "react";
+import ReactDOM from 'react-dom'; // 🔥 CRITICAL: Add this import for flushSync
 import useUndoRedo from './hooks/useUndoRedo';
 import useCanvasDrawing from './hooks/useCanvasDrawing';
 import useCanvasSelection from './hooks/useCanvasSelection';
@@ -12,9 +13,8 @@ import "./Canvas.css";
 
 const SHAPE_TOOLS = ["square", "diamond", "circle", "arrow", "line", "rectangle"];
 const ERASER_RADIUS = 2;
-const LASER_DURATION = 3000; // 3 seconds - laser auto-expires
+const LASER_DURATION = 3000;
 
-// Custom throttle function
 const throttle = (func, delay) => {
   let timeoutId;
   let lastExecTime = 0;
@@ -55,7 +55,7 @@ export default function Canvas({
   socket,
   roomId,
   userColor = "#000000",
-  onImageTrigger // This prop exposes file input trigger
+  onImageTrigger
 }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
@@ -65,18 +65,16 @@ export default function Canvas({
   const currentStrokeIdRef = useRef(null);
   const lastBroadcastTime = useRef(0);
   const lastCursorBroadcast = useRef(0);
-
-  // File input ref for images
   const fileInputRef = useRef(null);
 
   const [shapes, setShapes] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState(new Map());
-
-  // Image preview state
   const [imagePreview, setImagePreview] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  // Performance-critical state
+  // 🔥 NEW: State for immediate visual feedback
+  const [justAddedImage, setJustAddedImage] = useState(null);
+
   const [textInput, setTextInput] = useState({
     show: false,
     x: 0,
@@ -111,14 +109,71 @@ export default function Canvas({
   const images = useCanvasImages(shapes, setShapes, saveToHistory, panning, opacity, canvasRef);
   const cursor = useCursor(selectedTool, panning.panOffset, imagePreview || images.imageToPlace, ERASER_RADIUS);
 
-  // FIX: Helper function to ensure laser visibility on any background
   const getLaserColor = useCallback((color) => {
-    // For very dark colors, use white for better visibility
     if (color === '#191919' || color === '#000000') {
       return '#FFFFFF';
     }
-    // For all other colors, use them as-is
     return color;
+  }, []);
+
+  // ==================== SAVE/EXPORT FUNCTIONS ====================
+
+  const saveCanvasAsImage = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      throw new Error('Canvas not available');
+    }
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to create canvas image'));
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+        link.href = url;
+        link.download = `canvas-${timestamp}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        resolve();
+      }, 'image/png');
+    });
+  }, []);
+
+  const exportCanvasAsImage = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      throw new Error('Canvas not available');
+    }
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to export canvas image'));
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+        link.href = url;
+        link.download = `exported-canvas-${timestamp}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        resolve();
+      }, 'image/png');
+    });
   }, []);
 
   // ==================== BROADCAST FUNCTIONS ====================
@@ -164,620 +219,6 @@ export default function Canvas({
     });
   }, [socket, roomId]);
 
-  // ==================== IMAGE HANDLING FUNCTIONS ====================
-
-  const handleFileSelect = useCallback((e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const maxSize = 400;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = width * ratio;
-            height = height * ratio;
-          }
-
-          setImagePreview({
-            src: event.target.result,
-            width,
-            height,
-            name: file.name
-          });
-
-          console.log(`Image "${file.name}" loaded. Click on canvas to place it.`);
-        };
-        img.onerror = () => {
-          console.error('Failed to load image:', file.name);
-          alert('Failed to load the selected image.');
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-    e.target.value = '';
-  }, []);
-
-  const handleImagePlacement = useCallback((e) => {
-    if (!imagePreview) return false;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return false;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left - panning.panOffset.x;
-    const y = e.clientY - rect.top - panning.panOffset.y;
-
-    // FIX: Save history BEFORE adding image
-    saveToHistory(shapes);
-
-    const imageId = `img_${Date.now()}_${Math.random()}`;
-
-    const newImg = new Image();
-    newImg.onload = () => {
-      images.setLoadedImages(prev => new Map(prev.set(imageId, newImg)));
-    };
-    newImg.src = imagePreview.src;
-
-    const newImageShape = {
-      id: imageId,
-      tool: "image",
-      x: x - imagePreview.width / 2,
-      y: y - imagePreview.height / 2,
-      width: imagePreview.width,
-      height: imagePreview.height,
-      src: imagePreview.src,
-      opacity: opacity / 100,
-      name: imagePreview.name
-    };
-
-    setShapes(prev => [...prev, newImageShape]);
-    broadcastDrawingImmediate(newImageShape);
-
-    setImagePreview(null);
-    setMousePosition({ x: 0, y: 0 });
-
-    return true;
-  }, [imagePreview, shapes, saveToHistory, panning.panOffset, opacity, images, broadcastDrawingImmediate]);
-
-  const handleMouseMoveWithPreview = useCallback((e) => {
-    if (imagePreview) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left - panning.panOffset.x;
-        const y = e.clientY - rect.top - panning.panOffset.y;
-        setMousePosition({ x, y });
-      }
-    }
-  }, [imagePreview, panning.panOffset]);
-
-  const handleEscapeKey = useCallback((e) => {
-    if (e.key === 'Escape' && imagePreview) {
-      setImagePreview(null);
-      setMousePosition({ x: 0, y: 0 });
-      console.log('Image preview cancelled');
-    }
-  }, [imagePreview]);
-
-  // ==================== DRAWING SYSTEM ====================
-
-  const drawDirectlyOnCanvas = useCallback((point, isEnd = false) => {
-    const canvas = canvasRef.current;
-    const ctx = contextRef.current;
-    if (!canvas || !ctx || selectedTool !== 'pen') return;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = selectedColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.globalAlpha = opacity / 100;
-
-    if (lastPointRef.current) {
-      ctx.beginPath();
-      ctx.moveTo(lastPointRef.current.x + panning.panOffset.x, lastPointRef.current.y + panning.panOffset.y);
-      ctx.lineTo(point.x + panning.panOffset.x, point.y + panning.panOffset.y);
-      ctx.stroke();
-    }
-
-    lastPointRef.current = point;
-    ctx.restore();
-    drawing.setPenPoints(prev => [...prev, point]);
-
-    if (isEnd) {
-      // FIX: Save history BEFORE adding pen stroke
-      saveToHistory(shapes);
-
-      const newShape = {
-        id: currentStrokeIdRef.current,
-        tool: 'pen',
-        points: [...drawing.penPoints, point],
-        color: selectedColor,
-        strokeWidth,
-        strokeStyle,
-        opacity: opacity / 100
-      };
-
-      setShapes(prev => [...prev, newShape]);
-      broadcastDrawingImmediate(newShape);
-      drawing.setPenPoints([]);
-      lastPointRef.current = null;
-      currentStrokeIdRef.current = null;
-    }
-  }, [selectedTool, selectedColor, strokeWidth, opacity, drawing, panning.panOffset, broadcastDrawingImmediate, shapes, saveToHistory]);
-
-  // ==================== HELPER FUNCTIONS FOR ERASER ====================
-
-  const pointNearLine = useCallback((point, start, end, threshold) => {
-    const A = point.x - start.x, B = point.y - start.y;
-    const C = end.x - start.x, D = end.y - start.y;
-    const dot = A * C + B * D, len_sq = C * C + D * D;
-    let param = -1;
-    if (len_sq !== 0) param = dot / len_sq;
-
-    let xx, yy;
-    if (param < 0) { xx = start.x; yy = start.y; }
-    else if (param > 1) { xx = end.x; yy = end.y; }
-    else { xx = start.x + param * C; yy = start.y + param * D; }
-
-    const dx = point.x - xx, dy = point.y - yy;
-    return dx * dx + dy * dy <= threshold * threshold;
-  }, []);
-
-  const interpolatePoints = useCallback((p1, p2, spacing = 2) => {
-    const points = [];
-    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    const steps = Math.max(1, Math.floor(dist / spacing));
-
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      points.push({
-        x: p1.x + (p2.x - p1.x) * t,
-        y: p1.y + (p2.y - p1.y) * t,
-      });
-    }
-    return points;
-  }, []);
-
-  const isPointInElement = useCallback((point, shape) => {
-    if (shape.tool === "pen" || shape.tool === "laser") {
-      if (!shape.points || shape.points.length < 2) return false;
-      const points = shape.points;
-      for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        if (pointNearLine(point, p1, p2, 10)) return true;
-      }
-      return false;
-    } else if (shape.tool === "text") {
-      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
-      const textHeight = (shape.fontSize || 16) * 1.2;
-      return point.x >= shape.x && point.x <= shape.x + textWidth &&
-        point.y >= shape.y && point.y <= shape.y + textHeight;
-    } else if (shape.tool === "image") {
-      return point.x >= shape.x && point.x <= shape.x + shape.width &&
-        point.y >= shape.y && point.y <= shape.y + shape.height;
-    } else if (shape.start && shape.end) {
-      // Handle rectangle, circle, etc.
-      const minX = Math.min(shape.start.x, shape.end.x);
-      const maxX = Math.max(shape.start.x, shape.end.x);
-      const minY = Math.min(shape.start.y, shape.end.y);
-      const maxY = Math.max(shape.start.y, shape.end.y);
-      return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
-    }
-    return false;
-  }, [pointNearLine]);
-
-  // ==================== ENHANCED ERASER DETECTION ====================
-
-  const shapeIntersectsEraser = useCallback((shape, eraserPts) => {
-    if (!eraserPts || eraserPts.length === 0) return false;
-
-    const ERASER_RADIUS = 2;
-
-    // Handle pen/laser strokes
-    if (shape.tool === "pen" || shape.tool === "laser") {
-      if (!shape.points || shape.points.length < 2) return false;
-      const points = shape.points;
-      for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        for (const ep of eraserPts) {
-          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
-        }
-      }
-      return false;
-    }
-
-    // Handle text
-    if (shape.tool === "text") {
-      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
-      const textHeight = (shape.fontSize || 16) * 1.2;
-
-      return eraserPts.some(ep =>
-        ep.x >= shape.x && ep.x <= shape.x + textWidth &&
-        ep.y >= shape.y && ep.y <= shape.y + textHeight
-      );
-    }
-
-    // Handle images
-    if (shape.tool === "image") {
-      return eraserPts.some(ep =>
-        ep.x >= shape.x && ep.x <= shape.x + shape.width &&
-        ep.y >= shape.y && ep.y <= shape.y + shape.height
-      );
-    }
-
-    // Handle geometric shapes (rectangle, square, circle, diamond, line, arrow)
-    if (shape.start && shape.end) {
-      const minX = Math.min(shape.start.x, shape.end.x);
-      const maxX = Math.max(shape.start.x, shape.end.x);
-      const minY = Math.min(shape.start.y, shape.end.y);
-      const maxY = Math.max(shape.start.y, shape.end.y);
-
-      // Special handling for circles
-      if (shape.tool === "circle") {
-        const centerX = (shape.start.x + shape.end.x) / 2;
-        const centerY = (shape.start.y + shape.end.y) / 2;
-        const radius = Math.sqrt(Math.pow(shape.end.x - shape.start.x, 2) + Math.pow(shape.end.y - shape.start.y, 2)) / 2;
-
-        return eraserPts.some(ep => {
-          const dx = ep.x - centerX;
-          const dy = ep.y - centerY;
-          return Math.sqrt(dx * dx + dy * dy) <= radius + ERASER_RADIUS;
-        });
-      }
-
-      // Special handling for diamonds
-      if (shape.tool === "diamond") {
-        const cx = (shape.start.x + shape.end.x) / 2;
-        const cy = (shape.start.y + shape.end.y) / 2;
-        const w = Math.abs(shape.end.x - shape.start.x) / 2;
-        const h = Math.abs(shape.end.y - shape.start.y) / 2;
-
-        return eraserPts.some(ep => {
-          const dx = Math.abs(ep.x - cx);
-          const dy = Math.abs(ep.y - cy);
-          // Diamond equation: |x-cx|/w + |y-cy|/h <= 1
-          return (dx / w + dy / h) <= 1 + (ERASER_RADIUS / Math.max(w, h));
-        });
-      }
-
-      // Special handling for squares (maintain aspect ratio)
-      if (shape.tool === "square") {
-        const size = Math.max(Math.abs(shape.end.x - shape.start.x), Math.abs(shape.end.y - shape.start.y));
-        const adjustedMaxX = shape.start.x + size * Math.sign(shape.end.x - shape.start.x);
-        const adjustedMaxY = shape.start.y + size * Math.sign(shape.end.y - shape.start.y);
-
-        return eraserPts.some(ep =>
-          ep.x >= Math.min(shape.start.x, adjustedMaxX) &&
-          ep.x <= Math.max(shape.start.x, adjustedMaxX) &&
-          ep.y >= Math.min(shape.start.y, adjustedMaxY) &&
-          ep.y <= Math.max(shape.start.y, adjustedMaxY)
-        );
-      }
-
-      // Handle lines and arrows with thickness
-      if (shape.tool === "line" || shape.tool === "arrow") {
-        return eraserPts.some(ep => pointNearLine(ep, shape.start, shape.end, ERASER_RADIUS + (shape.strokeWidth || 2) / 2));
-      }
-
-      // Default bounding box check for rectangles and other shapes
-      return eraserPts.some(ep =>
-        ep.x >= minX - ERASER_RADIUS && ep.x <= maxX + ERASER_RADIUS &&
-        ep.y >= minY - ERASER_RADIUS && ep.y <= maxY + ERASER_RADIUS
-      );
-    }
-
-    return false;
-  }, [pointNearLine]);
-
-  // ==================== EVENT HANDLERS ====================
-
-  const handleMouseDown = useCallback((e) => {
-    if (!canvasRef.current) return;
-
-    if (handleImagePlacement(e)) {
-      return;
-    }
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const point = {
-      x: e.clientX - rect.left - panning.panOffset.x,
-      y: e.clientY - rect.top - panning.panOffset.y
-    };
-
-    isDrawingRef.current = true;
-
-    if (selectedTool === 'pen') {
-      currentStrokeIdRef.current = Date.now() + Math.random();
-      drawing.startDrawing(point);
-      drawDirectlyOnCanvas(point);
-    } else if (selectedTool === 'laser') {
-      // FIX: Add laser tool initialization
-      currentStrokeIdRef.current = Date.now() + Math.random();
-      drawing.startDrawing(point);
-      // Don't use drawDirectlyOnCanvas for laser - use standard drawing system
-    } else if (SHAPE_TOOLS.includes(selectedTool)) {
-      drawing.startDrawing(point);
-    } else if (selectedTool === 'text') {
-      setTextInput({
-        show: true,
-        x: point.x,
-        y: point.y,
-        value: "",
-        fontSize: Math.max(strokeWidth * 8, 16)
-      });
-    } else if (selectedTool === 'image') {
-      return;
-    } else if (selectedTool === 'eraser') {
-      eraser.startErasing(point);
-    } else if (selectedTool === 'hand') {
-      let clickedElementIndex = -1;
-      for (let i = shapes.length - 1; i >= 0; i--) {
-        if (isPointInElement(point, shapes[i])) {
-          clickedElementIndex = i;
-          break;
-        }
-      }
-
-      if (clickedElementIndex !== -1) {
-        if (!selection.isElementSelected(clickedElementIndex)) {
-          selection.selectElement(clickedElementIndex, e.ctrlKey || e.metaKey);
-        }
-      } else {
-        if (!e.ctrlKey && !e.metaKey) {
-          selection.clearSelection();
-        }
-        selection.startSelection(point);
-      }
-    }
-  }, [selectedTool, panning.panOffset, drawing, strokeWidth, drawDirectlyOnCanvas, eraser, shapes, selection, handleImagePlacement, isPointInElement]);
-
-  const handleMouseMove = useCallback((e) => {
-    if (!canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const point = {
-      x: x - panning.panOffset.x,
-      y: y - panning.panOffset.y
-    };
-
-    handleMouseMoveWithPreview(e);
-    broadcastCursor(x, y);
-
-    if (isDrawingRef.current) {
-      if (selectedTool === 'pen') {
-        drawDirectlyOnCanvas(point);
-        if (drawing.penPoints.length > 0) {
-          broadcastPenStroke([...drawing.penPoints, point], currentStrokeIdRef.current);
-        }
-      } else if (selectedTool === 'laser') {
-        // FIX: Add laser drawing logic
-        drawing.updateDrawing(point);
-        requestAnimationFrame(redrawCanvas);
-      } else if (SHAPE_TOOLS.includes(selectedTool)) {
-        drawing.updateDrawing(point);
-        requestAnimationFrame(redrawCanvas);
-      } else if (selectedTool === 'eraser') {
-        eraser.updateErasing(point, interpolatePoints, shapeIntersectsEraser);
-        requestAnimationFrame(redrawCanvas);
-      } else if (selectedTool === 'hand' && selection.isSelecting) {
-        selection.updateSelection(point, selection.selectionStartPoint);
-        requestAnimationFrame(redrawCanvas);
-      }
-    }
-
-    cursor.updateMousePosition(e);
-  }, [selectedTool, panning.panOffset, drawing, broadcastCursor, broadcastPenStroke, cursor, drawDirectlyOnCanvas, eraser, selection, handleMouseMoveWithPreview, interpolatePoints, shapeIntersectsEraser]);
-
-  const handleMouseUp = useCallback((e) => {
-    if (!isDrawingRef.current) return;
-
-    isDrawingRef.current = false;
-
-    if (selectedTool === 'pen') {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        const point = {
-          x: e.clientX - rect.left - panning.panOffset.x,
-          y: e.clientY - rect.top - panning.panOffset.y
-        };
-        drawDirectlyOnCanvas(point, true);
-      }
-    } else if (selectedTool === 'laser') {
-      // FIX: Add laser completion logic with expiration and dynamic color
-      if (drawing.laserPoints && drawing.laserPoints.length > 0) {
-        // FIX: Save history BEFORE adding laser
-        saveToHistory(shapes);
-
-        const newShape = {
-          id: currentStrokeIdRef.current,
-          tool: 'laser',
-          points: drawing.laserPoints,
-          color: selectedColor, // FIX: Use selected color from toolbar
-          strokeWidth,
-          strokeStyle,
-          opacity: opacity / 100,
-          expiration: Date.now() + LASER_DURATION // FIX: Add expiration time
-        };
-
-        setShapes(prev => [...prev, newShape]);
-        broadcastDrawingImmediate(newShape);
-
-        // FIX: Auto-remove laser after duration
-        setTimeout(() => {
-          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
-          requestAnimationFrame(redrawCanvas);
-        }, LASER_DURATION);
-
-        drawing.resetDrawing();
-        requestAnimationFrame(redrawCanvas);
-      }
-    } else if (SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
-      // FIX: Save history BEFORE adding shape
-      saveToHistory(shapes);
-
-      const newShape = {
-        id: Date.now() + Math.random(),
-        tool: selectedTool,
-        start: drawing.startPoint,
-        end: drawing.currentPoint,
-        color: selectedColor,
-        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
-        strokeWidth,
-        strokeStyle,
-        opacity: opacity / 100
-      };
-
-      setShapes(prev => [...prev, newShape]);
-      broadcastDrawingImmediate(newShape);
-      drawing.resetDrawing();
-      requestAnimationFrame(redrawCanvas);
-    } else if (selectedTool === 'eraser') {
-      eraser.finishErasing();
-      requestAnimationFrame(redrawCanvas);
-    } else if (selectedTool === 'hand' && selection.isSelecting) {
-      selection.finishSelection();
-      requestAnimationFrame(redrawCanvas);
-    }
-  }, [selectedTool, drawing, selectedColor, backgroundColor, strokeWidth, strokeStyle, opacity, panning.panOffset, broadcastDrawingImmediate, drawDirectlyOnCanvas, eraser, selection, shapes, saveToHistory]);
-
-  // ==================== SOCKET EVENT HANDLERS ====================
-
-  const handleRemoteDrawing = useCallback((data) => {
-    if (data.userId === socket?.id) return;
-
-    const newShape = {
-      id: data.id || Date.now() + Math.random(),
-      tool: data.tool,
-      start: data.start,
-      end: data.end,
-      points: data.points,
-      color: data.color,
-      strokeWidth: data.strokeWidth,
-      strokeStyle: data.strokeStyle,
-      opacity: data.opacity,
-      text: data.text,
-      fontSize: data.fontSize,
-      fontFamily: data.fontFamily,
-      x: data.x,
-      y: data.y,
-      width: data.width,
-      height: data.height,
-      src: data.src,
-      backgroundColor: data.backgroundColor,
-      expiration: data.expiration // FIX: Include expiration for remote laser strokes
-    };
-
-    setShapes(prev => {
-      if (data.tool === 'pen' || data.tool === 'laser') {
-        const existingIndex = prev.findIndex(s => s.id === newShape.id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = newShape;
-          return updated;
-        }
-      }
-      return [...prev, newShape];
-    });
-
-    // FIX: Auto-remove remote laser strokes when they expire
-    if (data.tool === 'laser' && data.expiration) {
-      const timeLeft = data.expiration - Date.now();
-      if (timeLeft > 0) {
-        setTimeout(() => {
-          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
-          requestAnimationFrame(redrawCanvas);
-        }, timeLeft);
-      }
-    }
-
-    if (data.tool === 'image' && data.src) {
-      const img = new Image();
-      img.onload = () => {
-        images.setLoadedImages(prev => new Map(prev.set(newShape.id, img)));
-      };
-      img.src = data.src;
-    }
-
-    requestAnimationFrame(redrawCanvas);
-  }, [socket?.id, images]);
-
-  const handleRemotePenStroke = useCallback((data) => {
-    if (data.userId === socket?.id) return;
-
-    setShapes(prev => {
-      const existingIndex = prev.findIndex(s => s.id === data.id);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          points: data.points
-        };
-        return updated;
-      }
-
-      return [...prev, {
-        id: data.id,
-        tool: 'pen',
-        points: data.points,
-        color: data.color,
-        strokeWidth: data.strokeWidth,
-        opacity: data.opacity,
-        temporary: true
-      }];
-    });
-
-    requestAnimationFrame(redrawCanvas);
-  }, [socket?.id]);
-
-  const handleRemoteCursor = useCallback((data) => {
-    setRemoteCursors(prev => {
-      const newCursors = new Map(prev);
-      newCursors.set(data.userId, {
-        name: data.name || `User ${data.userId?.slice(0, 6)}`,
-        color: data.color || '#000000',
-        x: data.x,
-        y: data.y,
-        timestamp: data.timestamp
-      });
-      return newCursors;
-    });
-
-    setTimeout(() => {
-      setRemoteCursors(prev => {
-        const newCursors = new Map(prev);
-        const cursorData = newCursors.get(data.userId);
-        if (cursorData && cursorData.timestamp === data.timestamp) {
-          newCursors.delete(data.userId);
-        }
-        return newCursors;
-      });
-    }, 2000);
-  }, []);
-
-  const handleClearCanvas = useCallback(() => {
-    setShapes([]);
-    drawing.resetDrawing();
-    selection.resetSelection();
-    eraser.resetEraser();
-    images.resetImageStates();
-    setTextInput({ show: false, x: 0, y: 0, value: "", fontSize: 16 });
-    setImagePreview(null);
-    setMousePosition({ x: 0, y: 0 });
-    requestAnimationFrame(redrawCanvas);
-  }, [drawing, selection, eraser, images]);
-
   // ==================== CANVAS SETUP AND RENDERING ====================
 
   const setupCanvas = useCallback(() => {
@@ -802,6 +243,7 @@ export default function Canvas({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, [canvasBackgroundColor]);
 
+  // 🎯 UPDATED: redrawCanvas with immediate feedback support
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = contextRef.current;
@@ -813,11 +255,11 @@ export default function Canvas({
     ctx.save();
     ctx.translate(panning.panOffset.x, panning.panOffset.y);
 
+    // Draw all existing shapes
     shapes.forEach((shape, idx) => {
       const isSelected = selection.selectedElements.includes(idx);
       const isFaded = eraser.markedIds.includes(idx);
 
-      // Skip expired laser shapes
       if (shape.tool === 'laser' && shape.expiration && Date.now() > shape.expiration) {
         return;
       }
@@ -832,14 +274,12 @@ export default function Canvas({
         ctx.lineJoin = 'round';
 
         if (shape.tool === 'laser') {
-          // FIX: Use shape's color with visibility enhancement
           const laserColor = getLaserColor(shape.color || selectedColor);
           ctx.strokeStyle = laserColor;
           ctx.shadowColor = laserColor;
           ctx.shadowBlur = 15;
-          ctx.lineWidth = (shape.strokeWidth || 2) + 2; // Slightly thicker
+          ctx.lineWidth = (shape.strokeWidth || 2) + 2;
 
-          // Add fade effect as laser approaches expiration
           if (shape.expiration) {
             const timeLeft = shape.expiration - Date.now();
             const fadeRatio = timeLeft / LASER_DURATION;
@@ -943,7 +383,6 @@ export default function Canvas({
             const w = Math.abs(shape.end.x - shape.start.x) / 2;
             const h = Math.abs(shape.end.y - shape.start.y) / 2;
 
-            // FIX: Ensure diamond path is properly closed
             ctx.beginPath();
             ctx.moveTo(cx, cy - h);
             ctx.lineTo(cx + w, cy);
@@ -960,6 +399,25 @@ export default function Canvas({
         ctx.restore();
       }
     });
+
+    // 🔥 NEW: Draw immediate feedback image if exists
+    if (justAddedImage) {
+      ctx.save();
+      ctx.globalAlpha = 0.8; // Slightly transparent for immediate feedback
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(justAddedImage.x, justAddedImage.y, justAddedImage.width, justAddedImage.height);
+
+      // Try to draw the image if available
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        ctx.drawImage(tempImg, justAddedImage.x, justAddedImage.y, justAddedImage.width, justAddedImage.height);
+      };
+      tempImg.src = justAddedImage.src;
+
+      ctx.restore();
+    }
 
     // Draw current drawing preview
     if (drawing.isDrawing) {
@@ -979,7 +437,6 @@ export default function Canvas({
         ctx.stroke();
         ctx.restore();
       } else if (selectedTool === "laser" && drawing.laserPoints && drawing.laserPoints.length > 0) {
-        // FIX: Update laser preview to use selected color with visibility enhancement
         ctx.save();
         const laserColor = getLaserColor(selectedColor);
         ctx.strokeStyle = laserColor;
@@ -1078,9 +535,643 @@ export default function Canvas({
     }
 
     ctx.restore();
-  }, [canvasBackgroundColor, panning.panOffset, shapes, drawing, selectedTool, selectedColor, strokeWidth, opacity, eraser, selection, images.loadedImages, getLaserColor]);
+  }, [canvasBackgroundColor, panning.panOffset, shapes, drawing, selectedTool, selectedColor, strokeWidth, opacity, eraser, selection, images.loadedImages, getLaserColor, justAddedImage]);
 
-  // ==================== SOCKET SETUP ====================
+  // 🔥 CRITICAL: Force immediate redraw after shapes changes
+  useLayoutEffect(() => {
+    redrawCanvas();
+  }, [shapes, redrawCanvas]);
+
+  // ==================== IMAGE HANDLING (FIXED FOR INSTANT PLACEMENT) ====================
+
+  const handleFileSelect = useCallback((e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 400;
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+
+        if (width > maxSize || height > maxSize) {
+          const scale = Math.min(maxSize / width, maxSize / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+
+        setImagePreview({
+          url,
+          width,
+          height,
+          name: file.name,
+          originalWidth: img.naturalWidth,
+          originalHeight: img.naturalHeight
+        });
+
+        console.log(`✅ Image "${file.name}" ready instantly! Click anywhere to place it.`);
+      };
+
+      img.onerror = () => {
+        console.error('❌ Failed to load image:', file.name);
+        alert('Failed to load the selected image.');
+        URL.revokeObjectURL(url);
+      };
+
+      img.src = url;
+    }
+
+    e.target.value = '';
+  }, []);
+
+  // 🚀 FIXED: Instant image placement with flushSync
+  const handleImagePlacement = useCallback((e) => {
+    if (!imagePreview) return false;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return false;
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left - panning.panOffset.x;
+    const clickY = e.clientY - rect.top - panning.panOffset.y;
+
+    const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    saveToHistory(shapes);
+
+    const newImageShape = {
+      id: imageId,
+      tool: "image",
+      x: clickX - imagePreview.width / 2,
+      y: clickY - imagePreview.height / 2,
+      width: imagePreview.width,
+      height: imagePreview.height,
+      src: imagePreview.url,
+      opacity: opacity / 100,
+      name: imagePreview.name
+    };
+
+    // 🔥 CRITICAL: Set immediate visual feedback
+    setJustAddedImage(newImageShape);
+
+    // 🔥 CRITICAL: Use flushSync to force immediate state update
+    ReactDOM.flushSync(() => {
+      setShapes(prev => [...prev, newImageShape]);
+    });
+
+    // 🔥 CRITICAL: Force immediate redraw
+    requestAnimationFrame(() => {
+      redrawCanvas();
+    });
+
+    // Clear immediate feedback after short delay
+    setTimeout(() => {
+      setJustAddedImage(null);
+    }, 200);
+
+    // Load the actual image for better rendering
+    const imgElement = new Image();
+    imgElement.onload = () => {
+      images.setLoadedImages(prev => new Map(prev.set(imageId, imgElement)));
+      requestAnimationFrame(() => {
+        redrawCanvas();
+      });
+    };
+    imgElement.src = imagePreview.url;
+
+    broadcastDrawingImmediate(newImageShape);
+    setImagePreview(null);
+    setMousePosition({ x: 0, y: 0 });
+
+    // 🔥 CRITICAL: Reset to hand tool for better UX
+    if (onToolChange) {
+      onToolChange('hand');
+    }
+
+    setTimeout(() => {
+      URL.revokeObjectURL(imagePreview.url);
+    }, 500);
+
+    console.log(`🎯 Image "${imagePreview.name}" placed INSTANTLY at (${Math.round(clickX)}, ${Math.round(clickY)})`);
+
+    return true;
+  }, [imagePreview, shapes, saveToHistory, panning.panOffset, opacity, images, broadcastDrawingImmediate, redrawCanvas, onToolChange]);
+
+  const handleMouseMoveWithPreview = useCallback((e) => {
+    if (imagePreview) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - panning.panOffset.x;
+        const y = e.clientY - rect.top - panning.panOffset.y;
+        setMousePosition({ x, y });
+      }
+    }
+  }, [imagePreview, panning.panOffset]);
+
+  const handleEscapeKey = useCallback((e) => {
+    if (e.key === 'Escape' && imagePreview) {
+      URL.revokeObjectURL(imagePreview.url);
+      setImagePreview(null);
+      setMousePosition({ x: 0, y: 0 });
+      console.log('🚫 Image placement cancelled');
+    }
+  }, [imagePreview]);
+
+  // ==================== DRAWING SYSTEM ====================
+
+  const drawDirectlyOnCanvas = useCallback((point, isEnd = false) => {
+    const canvas = canvasRef.current;
+    const ctx = contextRef.current;
+    if (!canvas || !ctx || selectedTool !== 'pen') return;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = selectedColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = opacity / 100;
+
+    if (lastPointRef.current) {
+      ctx.beginPath();
+      ctx.moveTo(lastPointRef.current.x + panning.panOffset.x, lastPointRef.current.y + panning.panOffset.y);
+      ctx.lineTo(point.x + panning.panOffset.x, point.y + panning.panOffset.y);
+      ctx.stroke();
+    }
+
+    lastPointRef.current = point;
+    ctx.restore();
+    drawing.setPenPoints(prev => [...prev, point]);
+
+    if (isEnd) {
+      saveToHistory(shapes);
+
+      const newShape = {
+        id: currentStrokeIdRef.current,
+        tool: 'pen',
+        points: [...drawing.penPoints, point],
+        color: selectedColor,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      };
+
+      setShapes(prev => [...prev, newShape]);
+      broadcastDrawingImmediate(newShape);
+      drawing.setPenPoints([]);
+      lastPointRef.current = null;
+      currentStrokeIdRef.current = null;
+    }
+  }, [selectedTool, selectedColor, strokeWidth, opacity, drawing, panning.panOffset, broadcastDrawingImmediate, shapes, saveToHistory]);
+
+  // ==================== HELPER FUNCTIONS ====================
+
+  const pointNearLine = useCallback((point, start, end, threshold) => {
+    const A = point.x - start.x, B = point.y - start.y;
+    const C = end.x - start.x, D = end.y - start.y;
+    const dot = A * C + B * D, len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+
+    let xx, yy;
+    if (param < 0) { xx = start.x; yy = start.y; }
+    else if (param > 1) { xx = end.x; yy = end.y; }
+    else { xx = start.x + param * C; yy = start.y + param * D; }
+
+    const dx = point.x - xx, dy = point.y - yy;
+    return dx * dx + dy * dy <= threshold * threshold;
+  }, []);
+
+  const interpolatePoints = useCallback((p1, p2, spacing = 2) => {
+    const points = [];
+    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    const steps = Math.max(1, Math.floor(dist / spacing));
+
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      points.push({
+        x: p1.x + (p2.x - p1.x) * t,
+        y: p1.y + (p2.y - p1.y) * t,
+      });
+    }
+    return points;
+  }, []);
+
+  const isPointInElement = useCallback((point, shape) => {
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      if (!shape.points || shape.points.length < 2) return false;
+      const points = shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        if (pointNearLine(point, p1, p2, 10)) return true;
+      }
+      return false;
+    } else if (shape.tool === "text") {
+      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+      const textHeight = (shape.fontSize || 16) * 1.2;
+      return point.x >= shape.x && point.x <= shape.x + textWidth &&
+        point.y >= shape.y && point.y <= shape.y + textHeight;
+    } else if (shape.tool === "image") {
+      return point.x >= shape.x && point.x <= shape.x + shape.width &&
+        point.y >= shape.y && point.y <= shape.y + shape.height;
+    } else if (shape.start && shape.end) {
+      const minX = Math.min(shape.start.x, shape.end.x);
+      const maxX = Math.max(shape.start.x, shape.end.x);
+      const minY = Math.min(shape.start.y, shape.end.y);
+      const maxY = Math.max(shape.start.y, shape.end.y);
+      return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+    }
+    return false;
+  }, [pointNearLine]);
+
+  const shapeIntersectsEraser = useCallback((shape, eraserPts) => {
+    if (!eraserPts || eraserPts.length === 0) return false;
+
+    const ERASER_RADIUS = 2;
+
+    if (shape.tool === "pen" || shape.tool === "laser") {
+      if (!shape.points || shape.points.length < 2) return false;
+      const points = shape.points;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        for (const ep of eraserPts) {
+          if (pointNearLine(ep, p1, p2, ERASER_RADIUS)) return true;
+        }
+      }
+      return false;
+    }
+
+    if (shape.tool === "text") {
+      const textWidth = shape.text.length * (shape.fontSize || 16) * 0.6;
+      const textHeight = (shape.fontSize || 16) * 1.2;
+
+      return eraserPts.some(ep =>
+        ep.x >= shape.x && ep.x <= shape.x + textWidth &&
+        ep.y >= shape.y && ep.y <= shape.y + textHeight
+      );
+    }
+
+    if (shape.tool === "image") {
+      return eraserPts.some(ep =>
+        ep.x >= shape.x && ep.x <= shape.x + shape.width &&
+        ep.y >= shape.y && ep.y <= shape.y + shape.height
+      );
+    }
+
+    if (shape.start && shape.end) {
+      const minX = Math.min(shape.start.x, shape.end.x);
+      const maxX = Math.max(shape.start.x, shape.end.x);
+      const minY = Math.min(shape.start.y, shape.end.y);
+      const maxY = Math.max(shape.start.y, shape.end.y);
+
+      if (shape.tool === "circle") {
+        const centerX = (shape.start.x + shape.end.x) / 2;
+        const centerY = (shape.start.y + shape.end.y) / 2;
+        const radius = Math.sqrt(Math.pow(shape.end.x - shape.start.x, 2) + Math.pow(shape.end.y - shape.start.y, 2)) / 2;
+
+        return eraserPts.some(ep => {
+          const dx = ep.x - centerX;
+          const dy = ep.y - centerY;
+          return Math.sqrt(dx * dx + dy * dy) <= radius + ERASER_RADIUS;
+        });
+      }
+
+      if (shape.tool === "diamond") {
+        const cx = (shape.start.x + shape.end.x) / 2;
+        const cy = (shape.start.y + shape.end.y) / 2;
+        const w = Math.abs(shape.end.x - shape.start.x) / 2;
+        const h = Math.abs(shape.end.y - shape.start.y) / 2;
+
+        return eraserPts.some(ep => {
+          const dx = Math.abs(ep.x - cx);
+          const dy = Math.abs(ep.y - cy);
+          return (dx / w + dy / h) <= 1 + (ERASER_RADIUS / Math.max(w, h));
+        });
+      }
+
+      if (shape.tool === "square") {
+        const size = Math.max(Math.abs(shape.end.x - shape.start.x), Math.abs(shape.end.y - shape.start.y));
+        const adjustedMaxX = shape.start.x + size * Math.sign(shape.end.x - shape.start.x);
+        const adjustedMaxY = shape.start.y + size * Math.sign(shape.end.y - shape.start.y);
+
+        return eraserPts.some(ep =>
+          ep.x >= Math.min(shape.start.x, adjustedMaxX) &&
+          ep.x <= Math.max(shape.start.x, adjustedMaxX) &&
+          ep.y >= Math.min(shape.start.y, adjustedMaxY) &&
+          ep.y <= Math.max(shape.start.y, adjustedMaxY)
+        );
+      }
+
+      if (shape.tool === "line" || shape.tool === "arrow") {
+        return eraserPts.some(ep => pointNearLine(ep, shape.start, shape.end, ERASER_RADIUS + (shape.strokeWidth || 2) / 2));
+      }
+
+      return eraserPts.some(ep =>
+        ep.x >= minX - ERASER_RADIUS && ep.x <= maxX + ERASER_RADIUS &&
+        ep.y >= minY - ERASER_RADIUS && ep.y <= maxY + ERASER_RADIUS
+      );
+    }
+
+    return false;
+  }, [pointNearLine]);
+
+  // ==================== EVENT HANDLERS ====================
+
+  const handleMouseDown = useCallback((e) => {
+    if (!canvasRef.current) return;
+
+    if (handleImagePlacement(e)) {
+      return;
+    }
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const point = {
+      x: e.clientX - rect.left - panning.panOffset.x,
+      y: e.clientY - rect.top - panning.panOffset.y
+    };
+
+    isDrawingRef.current = true;
+
+    if (selectedTool === 'pen') {
+      currentStrokeIdRef.current = Date.now() + Math.random();
+      drawing.startDrawing(point);
+      drawDirectlyOnCanvas(point);
+    } else if (selectedTool === 'laser') {
+      currentStrokeIdRef.current = Date.now() + Math.random();
+      drawing.startDrawing(point);
+    } else if (SHAPE_TOOLS.includes(selectedTool)) {
+      drawing.startDrawing(point);
+    } else if (selectedTool === 'text') {
+      setTextInput({
+        show: true,
+        x: point.x,
+        y: point.y,
+        value: "",
+        fontSize: Math.max(strokeWidth * 8, 16)
+      });
+    } else if (selectedTool === 'image') {
+      return;
+    } else if (selectedTool === 'eraser') {
+      eraser.startErasing(point);
+    } else if (selectedTool === 'hand') {
+      let clickedElementIndex = -1;
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        if (isPointInElement(point, shapes[i])) {
+          clickedElementIndex = i;
+          break;
+        }
+      }
+
+      if (clickedElementIndex !== -1) {
+        if (!selection.isElementSelected(clickedElementIndex)) {
+          selection.selectElement(clickedElementIndex, e.ctrlKey || e.metaKey);
+        }
+      } else {
+        if (!e.ctrlKey && !e.metaKey) {
+          selection.clearSelection();
+        }
+        selection.startSelection(point);
+      }
+    }
+  }, [selectedTool, panning.panOffset, drawing, strokeWidth, drawDirectlyOnCanvas, eraser, shapes, selection, handleImagePlacement, isPointInElement]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const point = {
+      x: x - panning.panOffset.x,
+      y: y - panning.panOffset.y
+    };
+
+    handleMouseMoveWithPreview(e);
+    broadcastCursor(x, y);
+
+    if (isDrawingRef.current) {
+      if (selectedTool === 'pen') {
+        drawDirectlyOnCanvas(point);
+        if (drawing.penPoints.length > 0) {
+          broadcastPenStroke([...drawing.penPoints, point], currentStrokeIdRef.current);
+        }
+      } else if (selectedTool === 'laser') {
+        drawing.updateDrawing(point);
+        requestAnimationFrame(() => redrawCanvas());
+      } else if (SHAPE_TOOLS.includes(selectedTool)) {
+        drawing.updateDrawing(point);
+        requestAnimationFrame(() => redrawCanvas());
+      } else if (selectedTool === 'eraser') {
+        eraser.updateErasing(point, interpolatePoints, shapeIntersectsEraser);
+        requestAnimationFrame(() => redrawCanvas());
+      } else if (selectedTool === 'hand' && selection.isSelecting) {
+        selection.updateSelection(point, selection.selectionStartPoint);
+        requestAnimationFrame(() => redrawCanvas());
+      }
+    }
+
+    cursor.updateMousePosition(e);
+  }, [selectedTool, panning.panOffset, drawing, broadcastCursor, broadcastPenStroke, cursor, drawDirectlyOnCanvas, eraser, selection, handleMouseMoveWithPreview, interpolatePoints, shapeIntersectsEraser, redrawCanvas]);
+
+  const handleMouseUp = useCallback((e) => {
+    if (!isDrawingRef.current) return;
+
+    isDrawingRef.current = false;
+
+    if (selectedTool === 'pen') {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const point = {
+          x: e.clientX - rect.left - panning.panOffset.x,
+          y: e.clientY - rect.top - panning.panOffset.y
+        };
+        drawDirectlyOnCanvas(point, true);
+      }
+    } else if (selectedTool === 'laser') {
+      if (drawing.laserPoints && drawing.laserPoints.length > 0) {
+        saveToHistory(shapes);
+
+        const newShape = {
+          id: currentStrokeIdRef.current,
+          tool: 'laser',
+          points: drawing.laserPoints,
+          color: selectedColor,
+          strokeWidth,
+          strokeStyle,
+          opacity: opacity / 100,
+          expiration: Date.now() + LASER_DURATION
+        };
+
+        setShapes(prev => [...prev, newShape]);
+        broadcastDrawingImmediate(newShape);
+
+        setTimeout(() => {
+          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
+          requestAnimationFrame(() => redrawCanvas());
+        }, LASER_DURATION);
+
+        drawing.resetDrawing();
+        requestAnimationFrame(() => redrawCanvas());
+      }
+    } else if (SHAPE_TOOLS.includes(selectedTool) && drawing.startPoint && drawing.currentPoint) {
+      saveToHistory(shapes);
+
+      const newShape = {
+        id: Date.now() + Math.random(),
+        tool: selectedTool,
+        start: drawing.startPoint,
+        end: drawing.currentPoint,
+        color: selectedColor,
+        backgroundColor: backgroundColor !== "#ffffff" ? backgroundColor : null,
+        strokeWidth,
+        strokeStyle,
+        opacity: opacity / 100
+      };
+
+      setShapes(prev => [...prev, newShape]);
+      broadcastDrawingImmediate(newShape);
+      drawing.resetDrawing();
+      requestAnimationFrame(() => redrawCanvas());
+    } else if (selectedTool === 'eraser') {
+      eraser.finishErasing();
+      requestAnimationFrame(() => redrawCanvas());
+    } else if (selectedTool === 'hand' && selection.isSelecting) {
+      selection.finishSelection();
+      requestAnimationFrame(() => redrawCanvas());
+    }
+  }, [selectedTool, drawing, selectedColor, backgroundColor, strokeWidth, strokeStyle, opacity, panning.panOffset, broadcastDrawingImmediate, drawDirectlyOnCanvas, eraser, selection, shapes, saveToHistory, redrawCanvas]);
+
+  // ==================== SOCKET EVENT HANDLERS ====================
+
+  const handleRemoteDrawing = useCallback((data) => {
+    if (data.userId === socket?.id) return;
+
+    const newShape = {
+      id: data.id || Date.now() + Math.random(),
+      tool: data.tool,
+      start: data.start,
+      end: data.end,
+      points: data.points,
+      color: data.color,
+      strokeWidth: data.strokeWidth,
+      strokeStyle: data.strokeStyle,
+      opacity: data.opacity,
+      text: data.text,
+      fontSize: data.fontSize,
+      fontFamily: data.fontFamily,
+      x: data.x,
+      y: data.y,
+      width: data.width,
+      height: data.height,
+      src: data.src,
+      backgroundColor: data.backgroundColor,
+      expiration: data.expiration
+    };
+
+    setShapes(prev => {
+      if (data.tool === 'pen' || data.tool === 'laser') {
+        const existingIndex = prev.findIndex(s => s.id === newShape.id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = newShape;
+          return updated;
+        }
+      }
+      return [...prev, newShape];
+    });
+
+    if (data.tool === 'laser' && data.expiration) {
+      const timeLeft = data.expiration - Date.now();
+      if (timeLeft > 0) {
+        setTimeout(() => {
+          setShapes(prevShapes => prevShapes.filter(s => s.id !== newShape.id));
+          requestAnimationFrame(() => redrawCanvas());
+        }, timeLeft);
+      }
+    }
+
+    if (data.tool === 'image' && data.src) {
+      const img = new Image();
+      img.onload = () => {
+        images.setLoadedImages(prev => new Map(prev.set(newShape.id, img)));
+      };
+      img.src = data.src;
+    }
+
+    requestAnimationFrame(() => redrawCanvas());
+  }, [socket?.id, images, redrawCanvas]);
+
+  const handleRemotePenStroke = useCallback((data) => {
+    if (data.userId === socket?.id) return;
+
+    setShapes(prev => {
+      const existingIndex = prev.findIndex(s => s.id === data.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          points: data.points
+        };
+        return updated;
+      }
+
+      return [...prev, {
+        id: data.id,
+        tool: 'pen',
+        points: data.points,
+        color: data.color,
+        strokeWidth: data.strokeWidth,
+        opacity: data.opacity,
+        temporary: true
+      }];
+    });
+
+    requestAnimationFrame(() => redrawCanvas());
+  }, [socket?.id, redrawCanvas]);
+
+  const handleRemoteCursor = useCallback((data) => {
+    setRemoteCursors(prev => {
+      const newCursors = new Map(prev);
+      newCursors.set(data.userId, {
+        name: data.name || `User ${data.userId?.slice(0, 6)}`,
+        color: data.color || '#000000',
+        x: data.x,
+        y: data.y,
+        timestamp: data.timestamp
+      });
+      return newCursors;
+    });
+
+    setTimeout(() => {
+      setRemoteCursors(prev => {
+        const newCursors = new Map(prev);
+        const cursorData = newCursors.get(data.userId);
+        if (cursorData && cursorData.timestamp === data.timestamp) {
+          newCursors.delete(data.userId);
+        }
+        return newCursors;
+      });
+    }, 2000);
+  }, []);
+
+  const handleClearCanvas = useCallback(() => {
+    setShapes([]);
+    drawing.resetDrawing();
+    selection.resetSelection();
+    eraser.resetEraser();
+    images.resetImageStates();
+    setTextInput({ show: false, x: 0, y: 0, value: "", fontSize: 16 });
+    setImagePreview(null);
+    setMousePosition({ x: 0, y: 0 });
+    setJustAddedImage(null); // Clear immediate feedback
+    requestAnimationFrame(() => redrawCanvas());
+  }, [drawing, selection, eraser, images, redrawCanvas]);
+
+  // ==================== COMPONENT SETUP ====================
 
   useEffect(() => {
     if (!socket) return;
@@ -1098,24 +1189,21 @@ export default function Canvas({
     };
   }, [socket, handleRemoteDrawing, handleRemotePenStroke, handleRemoteCursor, handleClearCanvas]);
 
-  // ==================== COMPONENT SETUP ====================
-
   useEffect(() => {
     setupCanvas();
     redrawCanvas();
-  }, [setupCanvas, redrawCanvas]);
+  }, [canvasBackgroundColor]);
 
   useEffect(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
-    animationFrameRef.current = requestAnimationFrame(redrawCanvas);
-  }, [shapes.length, redrawCanvas]);
+    animationFrameRef.current = requestAnimationFrame(() => redrawCanvas());
+  }, [shapes.length]);
 
   // Text submission
   const handleTextSubmit = useCallback(() => {
     if (textInput.value.trim()) {
-      // FIX: Save history BEFORE adding text
       saveToHistory(shapes);
 
       const newTextShape = {
@@ -1143,23 +1231,21 @@ export default function Canvas({
     });
   }, [textInput, selectedColor, opacity, broadcastDrawingImmediate, shapes, saveToHistory]);
 
-  // Clear function for parent
   const clearAllCanvas = useCallback(() => {
     handleClearCanvas();
 
     if (socket && roomId) {
       socket.emit('clearCanvas', { roomId });
     }
-  }, [handleClearCanvas, socket, roomId]);
+  }, [socket, roomId]);
 
-  // Expose clear function to parent
   useEffect(() => {
     if (onClearFunction) {
       onClearFunction(clearAllCanvas);
     }
-  }, [clearAllCanvas, onClearFunction]);
+  }, [onClearFunction, clearAllCanvas]);
 
-  // Expose image functions to parent
+  // Expose functions to parent
   useEffect(() => {
     if (onAddImageToCanvas) {
       onAddImageToCanvas((imageSrc, imageName) => {
@@ -1186,18 +1272,26 @@ export default function Canvas({
         img.src = imageSrc;
       });
     }
-  }, [onAddImageToCanvas, opacity, broadcastDrawingImmediate, images]);
+
+    if (onSaveFunction) {
+      onSaveFunction({
+        saveCanvas: saveCanvasAsImage,
+        exportImage: exportCanvasAsImage
+      });
+    }
+  }, [onAddImageToCanvas, onSaveFunction, opacity, broadcastDrawingImmediate, images, saveCanvasAsImage, exportCanvasAsImage]);
 
   // Expose image trigger function to parent
   useEffect(() => {
     if (onImageTrigger) {
-      onImageTrigger(() => {
+      const triggerImageInput = () => {
         if (fileInputRef.current) {
           fileInputRef.current.click();
         }
-      });
+      };
+      onImageTrigger(triggerImageInput);
     }
-  }, [onImageTrigger]);
+  }, []);
 
   // ESC key handler
   useEffect(() => {
@@ -1284,7 +1378,7 @@ export default function Canvas({
         style={{ display: 'none' }}
       />
 
-      {/* Image preview that follows mouse */}
+      {/* Enhanced image preview */}
       {imagePreview && (
         <div
           style={{
@@ -1304,10 +1398,16 @@ export default function Canvas({
             justifyContent: 'center',
             fontSize: '12px',
             color: '#3b82f6',
-            willChange: 'transform'
+            willChange: 'transform',
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
           }}
         >
-          📷 {imagePreview.name}
+          <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+            📷 {imagePreview.name}
+            <div style={{ fontSize: '10px', marginTop: '2px', opacity: 0.8 }}>
+              {imagePreview.width} × {imagePreview.height}px
+            </div>
+          </div>
         </div>
       )}
 
