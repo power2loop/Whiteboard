@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 
 const ERASER_RADIUS = 2;
 
-export default function useCanvasEraser(shapes, setShapes, saveToHistory) {
+export default function useCanvasEraser(shapes, setShapes, saveToHistory, socket, roomId) {
     const [eraserPath, setEraserPath] = useState([]);
     const [markedIds, setMarkedIds] = useState([]);
 
@@ -34,15 +34,43 @@ export default function useCanvasEraser(shapes, setShapes, saveToHistory) {
         });
     }, [shapes]); // Removed eraserPath from dependencies to avoid stale closures
 
-    // Complete erasing operation
+    // Complete erasing operation - ENHANCED FOR COLLABORATION
     const finishErasing = useCallback(() => {
         if (markedIds.length > 0) {
             saveToHistory(shapes);
-            setShapes(prevShapes => prevShapes.filter((_, i) => !markedIds.includes(i)));
+
+            // Get the shapes to be deleted before filtering
+            const shapesToDelete = markedIds.map(idx => shapes[idx]).filter(Boolean);
+            const updatedShapes = shapes.filter((_, i) => !markedIds.includes(i));
+
+            // Update local state
+            setShapes(updatedShapes);
+
+            // Emit eraser operation to other users in the room
+            if (socket && roomId) {
+                socket.emit('shapes-erased', {
+                    roomId,
+                    deletedIndices: markedIds,
+                    deletedShapes: shapesToDelete,
+                    updatedShapes: updatedShapes,
+                    timestamp: Date.now()
+                });
+            }
         }
         setMarkedIds([]);
         setEraserPath([]);
-    }, [markedIds, shapes, saveToHistory, setShapes]);
+    }, [markedIds, shapes, saveToHistory, setShapes, socket, roomId]);
+
+    // Handle incoming eraser operations from other users
+    const handleRemoteErase = useCallback((data) => {
+        if (data.roomId === roomId) {
+            // Save current state to history before applying remote changes
+            saveToHistory(shapes);
+
+            // Apply the updated shapes from remote user
+            setShapes(data.updatedShapes);
+        }
+    }, [roomId, shapes, saveToHistory, setShapes]);
 
     // Check if currently erasing
     const isErasing = eraserPath.length > 0;
@@ -67,6 +95,7 @@ export default function useCanvasEraser(shapes, setShapes, saveToHistory) {
         updateErasing,
         finishErasing,
         resetEraser,
-        getEraserRadius
+        getEraserRadius,
+        handleRemoteErase // New function for handling remote eraser operations
     };
 }

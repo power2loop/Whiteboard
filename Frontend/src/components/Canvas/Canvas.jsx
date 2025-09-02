@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo, useLayoutEffect } from "react";
-import ReactDOM from 'react-dom'; // 🔥 CRITICAL: Add this import for flushSync
+import ReactDOM from 'react-dom';
 import useUndoRedo from './hooks/useUndoRedo';
 import useCanvasDrawing from './hooks/useCanvasDrawing';
 import useCanvasSelection from './hooks/useCanvasSelection';
@@ -71,8 +71,6 @@ export default function Canvas({
   const [remoteCursors, setRemoteCursors] = useState(new Map());
   const [imagePreview, setImagePreview] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
-  // 🔥 NEW: State for immediate visual feedback
   const [justAddedImage, setJustAddedImage] = useState(null);
 
   const [textInput, setTextInput] = useState({
@@ -83,7 +81,7 @@ export default function Canvas({
     fontSize: 16
   });
 
-  // Use hooks
+  // Use hooks with updated eraser hook for collaboration
   const { saveToHistory } = useUndoRedo(
     shapes,
     setShapes,
@@ -103,7 +101,10 @@ export default function Canvas({
   );
 
   const selection = useCanvasSelection(shapes);
-  const eraser = useCanvasEraser(shapes, setShapes, saveToHistory);
+
+  // Updated eraser hook with collaboration support
+  const eraser = useCanvasEraser(shapes, setShapes, saveToHistory, socket, roomId);
+
   const panning = useCanvasPanning();
   const renderer = useCanvasRenderer();
   const images = useCanvasImages(shapes, setShapes, saveToHistory, panning, opacity, canvasRef);
@@ -134,7 +135,6 @@ export default function Canvas({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
         link.href = url;
         link.download = `canvas-${timestamp}.png`;
         document.body.appendChild(link);
@@ -243,7 +243,6 @@ export default function Canvas({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, [canvasBackgroundColor]);
 
-  // 🎯 UPDATED: redrawCanvas with immediate feedback support
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = contextRef.current;
@@ -400,16 +399,15 @@ export default function Canvas({
       }
     });
 
-    // 🔥 NEW: Draw immediate feedback image if exists
+    // Draw immediate feedback image if exists
     if (justAddedImage) {
       ctx.save();
-      ctx.globalAlpha = 0.8; // Slightly transparent for immediate feedback
+      ctx.globalAlpha = 0.8;
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.strokeRect(justAddedImage.x, justAddedImage.y, justAddedImage.width, justAddedImage.height);
 
-      // Try to draw the image if available
       const tempImg = new Image();
       tempImg.onload = () => {
         ctx.drawImage(tempImg, justAddedImage.x, justAddedImage.y, justAddedImage.width, justAddedImage.height);
@@ -537,12 +535,11 @@ export default function Canvas({
     ctx.restore();
   }, [canvasBackgroundColor, panning.panOffset, shapes, drawing, selectedTool, selectedColor, strokeWidth, opacity, eraser, selection, images.loadedImages, getLaserColor, justAddedImage]);
 
-  // 🔥 CRITICAL: Force immediate redraw after shapes changes
   useLayoutEffect(() => {
     redrawCanvas();
   }, [shapes, redrawCanvas]);
 
-  // ==================== IMAGE HANDLING (FIXED FOR INSTANT PLACEMENT) ====================
+  // ==================== IMAGE HANDLING ====================
 
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
@@ -585,7 +582,6 @@ export default function Canvas({
     e.target.value = '';
   }, []);
 
-  // 🚀 FIXED: Instant image placement with flushSync
   const handleImagePlacement = useCallback((e) => {
     if (!imagePreview) return false;
 
@@ -612,25 +608,20 @@ export default function Canvas({
       name: imagePreview.name
     };
 
-    // 🔥 CRITICAL: Set immediate visual feedback
     setJustAddedImage(newImageShape);
 
-    // 🔥 CRITICAL: Use flushSync to force immediate state update
     ReactDOM.flushSync(() => {
       setShapes(prev => [...prev, newImageShape]);
     });
 
-    // 🔥 CRITICAL: Force immediate redraw
     requestAnimationFrame(() => {
       redrawCanvas();
     });
 
-    // Clear immediate feedback after short delay
     setTimeout(() => {
       setJustAddedImage(null);
     }, 200);
 
-    // Load the actual image for better rendering
     const imgElement = new Image();
     imgElement.onload = () => {
       images.setLoadedImages(prev => new Map(prev.set(imageId, imgElement)));
@@ -644,7 +635,6 @@ export default function Canvas({
     setImagePreview(null);
     setMousePosition({ x: 0, y: 0 });
 
-    // 🔥 CRITICAL: Reset to hand tool for better UX
     if (onToolChange) {
       onToolChange('hand');
     }
@@ -1167,7 +1157,7 @@ export default function Canvas({
     setTextInput({ show: false, x: 0, y: 0, value: "", fontSize: 16 });
     setImagePreview(null);
     setMousePosition({ x: 0, y: 0 });
-    setJustAddedImage(null); // Clear immediate feedback
+    setJustAddedImage(null);
     requestAnimationFrame(() => redrawCanvas());
   }, [drawing, selection, eraser, images, redrawCanvas]);
 
@@ -1181,13 +1171,17 @@ export default function Canvas({
     socket.on('cursorMove', handleRemoteCursor);
     socket.on('clearCanvas', handleClearCanvas);
 
+    // Add eraser collaboration listeners
+    socket.on('shapes-erased', eraser.handleRemoteErase);
+
     return () => {
       socket.off('drawing', handleRemoteDrawing);
       socket.off('penStroke', handleRemotePenStroke);
       socket.off('cursorMove', handleRemoteCursor);
       socket.off('clearCanvas', handleClearCanvas);
+      socket.off('shapes-erased', eraser.handleRemoteErase);
     };
-  }, [socket, handleRemoteDrawing, handleRemotePenStroke, handleRemoteCursor, handleClearCanvas]);
+  }, [socket, handleRemoteDrawing, handleRemotePenStroke, handleRemoteCursor, handleClearCanvas, eraser.handleRemoteErase]);
 
   useEffect(() => {
     setupCanvas();
@@ -1237,7 +1231,7 @@ export default function Canvas({
     if (socket && roomId) {
       socket.emit('clearCanvas', { roomId });
     }
-  }, [socket, roomId]);
+  }, [socket, roomId, handleClearCanvas]);
 
   useEffect(() => {
     if (onClearFunction) {
@@ -1291,7 +1285,7 @@ export default function Canvas({
       };
       onImageTrigger(triggerImageInput);
     }
-  }, []);
+  }, [onImageTrigger]);
 
   // ESC key handler
   useEffect(() => {
@@ -1424,24 +1418,23 @@ export default function Canvas({
             }
           }}
           style={{
-  position: 'absolute',
-  left: textInput.x + panning.panOffset.x,
-  top: textInput.y + panning.panOffset.y,
-  fontSize: `${textInput.fontSize}px`,
-  color: selectedColor,
-  background: '#ffffff4e',
-  borderRadius: '8px',
-  outline: 'none',
-  resize: 'both', // clean resize
-  zIndex: 1000,
-  Width: '120px',
-  Height: `${textInput.fontSize * 1.4}px`,
-  padding: '6px 10px',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-  transition: 'all 0.25s ease-in-out',
-  animation: 'fadeInScale 0.25s ease-out',
-}}
-
+            position: 'absolute',
+            left: textInput.x + panning.panOffset.x,
+            top: textInput.y + panning.panOffset.y,
+            fontSize: `${textInput.fontSize}px`,
+            color: selectedColor,
+            background: '#ffffff4e',
+            borderRadius: '8px',
+            outline: 'none',
+            resize: 'both',
+            zIndex: 1000,
+            minWidth: '120px',
+            minHeight: `${textInput.fontSize * 1.4}px`,
+            padding: '6px 10px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            transition: 'all 0.25s ease-in-out',
+            animation: 'fadeInScale 0.25s ease-out',
+          }}
           placeholder="Type..."
           autoFocus
         />

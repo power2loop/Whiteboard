@@ -118,6 +118,30 @@ io.on("connection", (socket) => {
         socket.to(socket.currentRoom).emit("drawing", drawingData);
     });
 
+    // 🔥 NEW: Handle collaborative eraser operations
+    socket.on("shapes-erased", (data) => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        if (!room) return;
+
+        // Update room's canvas state by removing erased shapes
+        if (data.deletedIndices && data.deletedIndices.length > 0) {
+            // Remove shapes from canvas state based on indices
+            room.canvasState = data.updatedShapes || [];
+
+            console.log(`🗑️ User ${socket.userName} erased ${data.deletedIndices.length} shapes in room ${socket.currentRoom}`);
+        }
+
+        // Broadcast eraser operation to all other users in the room
+        socket.to(socket.currentRoom).emit("shapes-erased", {
+            ...data,
+            userId: socket.userId,
+            userName: socket.userName,
+            timestamp: Date.now()
+        });
+    });
+
     // Optimized cursor movement with throttling
     let lastCursorBroadcast = 0;
     socket.on("cursorMove", (data) => {
@@ -160,6 +184,7 @@ io.on("connection", (socket) => {
             room.canvasState = [];
         }
 
+        console.log(`🧹 Canvas cleared by ${socket.userName} in room ${socket.currentRoom}`);
         socket.to(socket.currentRoom).emit("clearCanvas");
     });
 
@@ -174,6 +199,32 @@ io.on("connection", (socket) => {
         }
     });
 
+    // 🔥 NEW: Handle shape additions (for better state management)
+    socket.on("shape-added", (data) => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        if (!room) return;
+
+        // Add shape to room's canvas state
+        if (data.shape) {
+            room.canvasState.push({
+                ...data.shape,
+                userId: socket.userId,
+                userName: socket.userName,
+                timestamp: Date.now()
+            });
+        }
+
+        // Broadcast to other users
+        socket.to(socket.currentRoom).emit("shape-added", {
+            ...data,
+            userId: socket.userId,
+            userName: socket.userName,
+            timestamp: Date.now()
+        });
+    });
+
     // Handle user leaving room
     socket.on("leaveRoom", () => {
         if (socket.currentRoom) {
@@ -183,6 +234,7 @@ io.on("connection", (socket) => {
 
                 // Clean up empty rooms
                 if (room.users.size === 0) {
+                    console.log(`🗂️ Cleaning up empty room: ${socket.currentRoom}`);
                     rooms.delete(socket.currentRoom);
                 }
             }
@@ -192,6 +244,7 @@ io.on("connection", (socket) => {
                 name: socket.userName
             });
 
+            console.log(`👋 ${socket.userName} left room ${socket.currentRoom}`);
             socket.leave(socket.currentRoom);
             socket.currentRoom = null;
         }
@@ -208,6 +261,7 @@ io.on("connection", (socket) => {
 
                 // Clean up empty rooms
                 if (room.users.size === 0) {
+                    console.log(`🗂️ Cleaning up empty room after disconnect: ${socket.currentRoom}`);
                     rooms.delete(socket.currentRoom);
                 }
             }
@@ -220,9 +274,40 @@ io.on("connection", (socket) => {
 
         io.emit("removeCursor", socket.id);
     });
+
+    // 🔥 NEW: Debug endpoint to check room states (optional)
+    socket.on("getRoomState", () => {
+        if (!socket.currentRoom) return;
+
+        const room = rooms.get(socket.currentRoom);
+        socket.emit("roomState", {
+            roomId: socket.currentRoom,
+            users: room ? Array.from(room.users.values()) : [],
+            canvasStateLength: room ? room.canvasState.length : 0
+        });
+    });
+});
+
+// 🔥 NEW: Optional REST endpoint to get room info
+app.get("/rooms", (req, res) => {
+    const roomInfo = Array.from(rooms.entries()).map(([roomId, room]) => ({
+        roomId,
+        userCount: room.users.size,
+        shapeCount: room.canvasState.length,
+        users: Array.from(room.users.values()).map(user => ({
+            name: user.name,
+            color: user.color
+        }))
+    }));
+
+    res.json({
+        totalRooms: rooms.size,
+        rooms: roomInfo
+    });
 });
 
 // Start server with HTTP
 server.listen(PORT, () => {
     console.log(`🚀 Express + Socket.IO server is running on http://localhost:${PORT}`);
+    console.log(`📊 Room info available at: http://localhost:${PORT}/rooms`);
 });
