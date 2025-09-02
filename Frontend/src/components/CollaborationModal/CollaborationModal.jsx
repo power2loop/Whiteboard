@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { IoCopyOutline, IoCheckmarkOutline, IoStopCircleOutline } from "react-icons/io5";
 import './CollaborationModal.css';
+import { toast } from "react-toastify";
 
 const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
   const [userName, setUserName] = useState(user?.displayName || "");
@@ -44,7 +45,7 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
 
     setCollaborationStarted(true);
     setIsConnecting(false);
-    console.log("Collaboration started for room:", newRoomId);
+    toast.success(`Collaboration started ${user.displayName}.`);
   };
 
   const handleStopCollaboration = () => {
@@ -61,7 +62,7 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
     // Clear URL
     window.history.pushState(null, '', window.location.pathname);
 
-    console.log("Collaboration stopped!");
+    toast.warning(`Collaboration stopped by ${user.displayName}`);
   };
 
   const copyLink = async () => {
@@ -70,9 +71,10 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
     try {
       await navigator.clipboard.writeText(collaborationLink);
       setCopied(true);
+      toast.success("Url is copy to clipboard")
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy link:', err);
+      toast.error('Failed to copy link: '+ err);
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = collaborationLink;

@@ -7,6 +7,8 @@ import Rightbar from '../components/Rightbar/Rightbar';
 import "./App.css";
 import { useState, useRef, useEffect, useCallback } from 'react';
 import socket from '../services/socket/socket';
+import { toast } from "react-toastify";
+
 
 function App() {
   const [selectedTool, setSelectedTool] = useState("hand");
@@ -39,6 +41,7 @@ function App() {
   const canvasExportRef = useRef(null);
 
   const onLeaveRoom = () => {
+    toast.warning("You leave the room", roomId);
     socket.emit("leaveRoom", roomId);
     setRoomId(null);
   };
@@ -54,27 +57,28 @@ function App() {
   // Socket connection management
   useEffect(() => {
     const handleConnect = () => {
-      console.log('Connected to server:', socket.id);
+      toast.success("Connected to server!", socket.id);
       setIsConnected(true);
     };
 
     const handleDisconnect = () => {
-      console.log('Disconnected from server');
+      toast.warning("Disconnected to server!");
       setIsConnected(false);
     };
 
     const handleRoomInfo = (data) => {
-      console.log('Room info received:', data);
+      // console.log('Room info received:', data);
       setRoomUsers(data.users || []);
     };
 
     const handleUserJoined = (userData) => {
-      console.log('User joined:', userData);
+      // console.log('User joined:', userData);
+      toast.info("User joined");
       setRoomUsers(prev => [...prev.filter(u => u.id !== userData.userId), userData]);
     };
 
     const handleUserLeft = (userData) => {
-      console.log('User left:', userData);
+      toast.warning("User left")
       setRoomUsers(prev => prev.filter(u => u.id !== userData.userId));
     };
 

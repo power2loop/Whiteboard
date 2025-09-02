@@ -5,6 +5,7 @@ import { IoLogInOutline, IoChevronDown, IoPersonOutline, IoFolderOutline, IoLogO
 import { auth, provider, signInWithPopup, signOut } from "../../services/authentication/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import CollaborationModal from '../CollaborationModal/CollaborationModal';
+import { toast } from "react-toastify";
 
 const Rightbar = ({ socket, roomId, setRoomId }) => {
   const [user, setUser] = useState(null);
@@ -33,10 +34,12 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
     try {
       const result = await signInWithPopup(auth, provider);
       setUser(result.user);
-      console.log("User signed in:", result.user);
+      // console.log("User signed in:", result.user);
+      toast.success("Login Successfully.")
     } catch (error) {
-      console.error("Login failed:", error);
-      alert("Failed to login. Please try again.");
+      // console.error("Login failed:", error);
+      toast.error("Login Failed" + error)
+      // alert("Failed to login. Please try again.");
     }
   };
 
@@ -54,6 +57,7 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
       }
 
       // Sign out from Firebase
+      toast.info(user.displayName +" logged out successfully")
       await signOut(auth);
       setUser(null);
       setShowProfileDropdown(false);
@@ -62,14 +66,15 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
       // Clear any local storage related to user session
       localStorage.removeItem('collaborationRoom');
       
-      console.log("User logged out successfully");
+      // console.log("${user.displayName} logged out successfully");
       
       // Optionally redirect to home or refresh page
-      window.location.reload();
+      // window.location.reload();
       
     } catch (error) {
-      console.error("Logout failed:", error);
-      alert("Failed to logout. Please try again.");
+      // console.error("Logout failed:", error);
+      toast.error("Logout failed:", error)
+      // alert("Failed to logout. Please try again.");
     }
   };
 
@@ -83,7 +88,6 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
 
   const handleProfileClick = () => {
     // Handle profile navigation
-    console.log("Navigate to profile");
     setShowProfileDropdown(false);
     // Add your profile navigation logic here
     // Example: navigate('/profile') if using React Router
@@ -91,7 +95,6 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
 
   const handleCollectionsClick = () => {
     // Handle collections navigation
-    console.log("Navigate to collections");
     setShowProfileDropdown(false);
     // Add your collections navigation logic here
     // Example: navigate('/collections') if using React Router

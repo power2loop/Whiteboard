@@ -224,5 +224,5 @@ io.on("connection", (socket) => {
 
 // Start server with HTTP
 server.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Express + Socket.IO server is running on http://localhost:${PORT}`);
 });

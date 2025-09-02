@@ -10,6 +10,7 @@ import { FiHelpCircle } from "react-icons/fi";
 import { TbHttpDelete } from "react-icons/tb";
 import { IoImageOutline } from "react-icons/io5"; // NEW: Import image icon
 import CollaborationModal from '../CollaborationModal/CollaborationModal';
+import { toast } from "react-toastify";
 
 const Sidebar = ({
   onSaveCanvas,
@@ -44,11 +45,11 @@ const Sidebar = ({
     try {
       if (onSaveCanvas) {
         await onSaveCanvas();
-        console.log('Canvas saved successfully!');
+        toast.success('Canvas is downloaded.');
       }
     } catch (error) {
-      console.error('Save failed:', error);
-      alert('Failed to save canvas. Please try again.');
+      // console.error('Save failed:', error);
+      toast.error('Failed to save canvas. Please try again.');
     }
     setOpen(false);
   };
@@ -58,10 +59,10 @@ const Sidebar = ({
     try {
       if (onExportImage) {
         await onExportImage();
-        console.log('Image exported successfully!');
+        // console.log('Image exported successfully!');
       }
     } catch (error) {
-      console.error('Export failed:', error);
+      // console.error('Export failed:', error);
       alert('Failed to export image. Please try again.');
     }
     setOpen(false);
