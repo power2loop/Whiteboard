@@ -8,8 +8,22 @@ const PORT = 3000;
 // Store room data
 const rooms = new Map();
 
+
 // Middleware to parse JSON
 app.use(express.json());
+
+
+// Serve static files from Frontend build
+app.use(express.static(path.join(__dirname, '../Frontend/dist')));
+
+// Your existing socket.io code here...
+// (all the socket handling code from your previous server.js)
+
+// Catch-all handler for React routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../Frontend/dist/index.html'));
+});
+
 
 // Basic route
 app.get("/", (req, res) => {

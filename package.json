@@ -7,6 +7,7 @@
   "main": "server.js",
   "devDependencies": {},
   "scripts": {
+    "build": "npm install --prefix ./Frontend && npm run build --prefix ./Frontend",
     "frontend": "npm run dev --prefix ./Frontend",
     "backend": "npm run server --prefix ./Backend",
     "start": "concurrently \"npm run backend\" \"npm run frontend\""
