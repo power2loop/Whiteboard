@@ -59,7 +59,10 @@ whiteboard/
 │   ├── package-lock.json
 │   ├── package.json
 │   └── server.js
-└── notes/
+|
+|
+|__ node_modules
+└── notes.txt
 ├── package-lock.json
 └── package.json
 

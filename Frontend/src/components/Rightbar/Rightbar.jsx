@@ -16,7 +16,7 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      
+
       // When user logs in, emit their info to socket
       if (currentUser && socket) {
         socket.emit('userInfo', {
@@ -34,12 +34,9 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
     try {
       const result = await signInWithPopup(auth, provider);
       setUser(result.user);
-      // console.log("User signed in:", result.user);
-      toast.success("Login Successfully.")
+      toast.success("Login Successfully.");
     } catch (error) {
-      // console.error("Login failed:", error);
-      toast.error("Login Failed" + error)
-      // alert("Failed to login. Please try again.");
+      toast.error("Login Failed: " + error.message);
     }
   };
 
@@ -57,24 +54,17 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
       }
 
       // Sign out from Firebase
-      toast.info(user.displayName +" logged out successfully")
+      toast.info(user.displayName + " logged out successfully");
       await signOut(auth);
       setUser(null);
       setShowProfileDropdown(false);
       setShowCollaborationModal(false);
-      
+
       // Clear any local storage related to user session
       localStorage.removeItem('collaborationRoom');
-      
-      // console.log("${user.displayName} logged out successfully");
-      
-      // Optionally redirect to home or refresh page
-      // window.location.reload();
-      
+
     } catch (error) {
-      // console.error("Logout failed:", error);
-      toast.error("Logout failed:", error)
-      // alert("Failed to logout. Please try again.");
+      toast.error("Logout failed: " + error.message);
     }
   };
 
@@ -89,15 +79,19 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
   const handleProfileClick = () => {
     // Handle profile navigation
     setShowProfileDropdown(false);
-    // Add your profile navigation logic here
-    // Example: navigate('/profile') if using React Router
+    // Show coming soon alert
+    toast.info("Profile feature coming soon!");
+    // Alternative using browser alert:
+    // alert("Profile feature coming soon!");
   };
 
   const handleCollectionsClick = () => {
     // Handle collections navigation
     setShowProfileDropdown(false);
-    // Add your collections navigation logic here
-    // Example: navigate('/collections') if using React Router
+    // Show coming soon alert
+    toast.info("Collections feature coming soon!");
+    // Alternative using browser alert:
+    // alert("Collections feature coming soon!");
   };
 
   // Close dropdown when clicking outside
@@ -132,7 +126,7 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
               <span className="btn-text">{user.displayName?.split(" ")[0]}</span>
               <IoChevronDown className={`dropdown-arrow ${showProfileDropdown ? 'rotated' : ''}`} />
             </button>
-            
+
             {showProfileDropdown && (
               <div className="profile-dropdown">
                 <div className="dropdown-header">
@@ -146,22 +140,22 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
                     <div className="user-email">{user.email}</div>
                   </div>
                 </div>
-                
+
                 <div className="dropdown-divider"></div>
-                
+
                 <div className="dropdown-menu">
                   <button className="dropdown-item" onClick={handleProfileClick}>
                     <IoPersonOutline className="dropdown-icon" />
                     <span>Profile</span>
                   </button>
-                  
+
                   <button className="dropdown-item" onClick={handleCollectionsClick}>
                     <IoFolderOutline className="dropdown-icon" />
                     <span>Collections</span>
                   </button>
-                  
+
                   <div className="dropdown-divider"></div>
-                  
+
                   <button className="dropdown-item logout-item" onClick={handleLogout}>
                     <IoLogOutOutline className="dropdown-icon" />
                     <span>Logout</span>
@@ -181,7 +175,7 @@ const Rightbar = ({ socket, roomId, setRoomId }) => {
       </div>
 
       {showCollaborationModal && (
-        <CollaborationModal 
+        <CollaborationModal
           user={user}
           socket={socket}
           roomId={roomId}

@@ -8,14 +8,31 @@ createRoot(document.getElementById('root')).render(
   <>
     <App />
     <ToastContainer
-      position="top-right"   // top-right, top-center, bottom-left, etc.
-      autoClose={2000}       // auto close after 3s
+      position="bottom-right"
+      autoClose={2000}
       hideProgressBar={false}
       newestOnTop={true}
       closeOnClick
       pauseOnHover
       draggable
-      theme="light"          // light, dark, colored
+      theme="light"
+
+      // Add custom styles here
+      style={{
+        fontSize: '10px',
+      }}
+      toastStyle={{
+        backgroundColor: '#f8f9fa',
+        color: '#333',
+        borderRadius: '8px',
+        minHeight: '40px',
+        width: '180px',
+        fontSize: '10px',
+        padding: '12px 16px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        border: '1px solid #e9ecef'
+      }}
     />
+
   </>
 )
