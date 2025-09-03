@@ -198,11 +198,11 @@ We welcome contributions from the community! Here's how you can help:
 
 ***
 
-**Built with ❤️ by two developers for creative collaboration**
+
 
 ## 👥 Authors
 - Vikash Kumar - [GitHub][(https://github.com/dev1](https://github.com/power2loop))
 - Aryan Gupta - [GitHub][(https://github.com/dev2](https://github.com/Aryangupta15))
 
-Built collaboratively by two full-stack developers.
+**Built with ❤️ by two developers for creative collaboration**
 
