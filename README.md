@@ -1,11 +1,7 @@
-Here's a professional README for your collaborative whiteboard application:
 
 # Collaborative Whiteboard
 
-A real-time collaborative whiteboard application that enables seamless creative collaboration across teams and individuals. Built with modern web technologies to provide a smooth, responsive drawing experience with powerful collaboration features.
-
-
-
+A real-time collaborative whiteboard application that enables seamless creative collaboration across teams and individuals. Built by a passionate duo of developers using modern web technologies to provide a smooth, responsive drawing experience with powerful collaboration features.
 
 
 
@@ -16,7 +12,6 @@ This collaborative whiteboard application empowers teams to brainstorm, design, 
 ### Key Highlights
 
 - **Real-time Collaboration**: Multiple users can draw and interact simultaneously
-- **Professional UI**: Clean, intuitive interface designed for productivity
 - **Cross-platform**: Works seamlessly across desktop and mobile devices
 - **Secure Authentication**: Firebase-powered user management
 - **Performance Optimized**: Built with modern React patterns and efficient rendering
@@ -194,10 +189,6 @@ We welcome contributions from the community! Here's how you can help:
 - Update documentation as needed
 - Ensure all tests pass before submitting PR
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - Firebase team for authentication services
@@ -205,24 +196,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - React team for the excellent framework
 - All contributors and beta testers
 
-## 📞 Support
-
-- **Documentation**: [Wiki](https://github.com/your-username/collaborative-whiteboard/wiki)
-- **Issues**: [GitHub Issues](https://github.com/your-username/collaborative-whiteboard/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/collaborative-whiteboard/discussions)
-- **Email**: support@yourwhiteboard.com
-
 ***
 
-**Built with ❤️ for creative collaboration**
+**Built with ❤️ by two developers for creative collaboration**
 
-[1](https://github.com/othneildrew/Best-README-Template)
-[2](https://www.makeareadme.com)
-[3](https://readme.so)
-[4](https://github.com/matiassingers/awesome-readme)
-[5](https://coding-boot-camp.github.io/full-stack/github/professional-readme-guide/)
-[6](https://blogs.incyclesoftware.com/readme-files-for-internal-projects)
-[7](https://www.thegooddocsproject.dev/template/readme)
-[8](https://dev.to/zand/a-comprehensive-and-user-friendly-project-readmemd-template-2ei8)
-[9](https://www.reddit.com/r/programming/comments/cfeu99/readme_template_i_use_for_most_of_my_projects/)
-[10](https://www.youtube.com/watch?v=rCt9DatF63I)
+## 👥 Authors
+- Vikash Kumar - [GitHub][(https://github.com/dev1](https://github.com/power2loop))
+- Aryan Gupta - [GitHub][(https://github.com/dev2](https://github.com/Aryangupta15))
+
+Built collaboratively by two full-stack developers.
+
