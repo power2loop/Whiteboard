@@ -62,7 +62,7 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
     // Clear URL
     window.history.pushState(null, '', window.location.pathname);
 
-    toast.warning(`Collaboration stopped by ${user.displayName}`);
+    toast.warning(`Collaboration stopped by user`);
   };
 
   const copyLink = async () => {
@@ -74,7 +74,7 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
       toast.success("Url is copy to clipboard")
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast.error('Failed to copy link: '+ err);
+      toast.error('Failed to copy link: ' + err);
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = collaborationLink;
