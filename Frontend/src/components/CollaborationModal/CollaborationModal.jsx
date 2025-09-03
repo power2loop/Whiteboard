@@ -45,7 +45,7 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
 
     setCollaborationStarted(true);
     setIsConnecting(false);
-    toast.success(`Collaboration started ${user.displayName}.`);
+    toast.success(`Collaboration started by user`);
   };
 
   const handleStopCollaboration = () => {
