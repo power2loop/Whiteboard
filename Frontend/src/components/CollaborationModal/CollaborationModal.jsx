@@ -71,10 +71,10 @@ const CollaborationModal = ({ user, socket, roomId, setRoomId, onClose }) => {
     try {
       await navigator.clipboard.writeText(collaborationLink);
       setCopied(true);
-      toast.success("Url is copy to clipboard")
+      // toast.success("Url is copy to clipboard")
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast.error('Failed to copy link: ' + err);
+      // toast.error('Failed to copy link: ' + err);
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = collaborationLink;

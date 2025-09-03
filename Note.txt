@@ -36,7 +36,7 @@ whiteboard/
 │   │   │   └── Topbar/
 │   │   │       ├── Topbar.css
 │   │   │       └── Topbar.jsx
-│   │   ├── pages/
+│   │   ├
 │   │   ├── services/
 │   │   │   ├── authentication/
 │   │   │   │   └── auth.js
@@ -51,34 +51,21 @@ whiteboard/
 │   ├── package.json
 │   ├── README.md
 │   └── vite.config.js
-
+|
 ├── Backend/
 │   ├── node_modules/
 │   ├── src/
-│   │   ├── controllers/
-│   │   │   └── boards.controller.js
-│   │   ├── routes/
-│   │   │   └── boards.route.js
-│   │   ├── services/
-│   │   │   └── boards.service.js
-│   │   ├── sockets/
-│   │   │   └── whiteboard.socket.js
-│   │   └── utils/
-│   │       └── validate.js
-│   ├── tests/
-│   │   └── boards.test.js
-│   ├── .env
 │   ├── .gitignore
 │   ├── package-lock.json
 │   ├── package.json
 │   └── server.js
 └── notes/
+├── package-lock.json
+└── package.json
 
 
 
-Looking at your Canvas component, here are the additional hooks you can create to further reduce the load:
-
-## **Additional Hooks to Extract**
+## ** Hook That used in this code**
 
 ### 1. useCanvasDrawing 
 
@@ -157,5 +144,3 @@ Manage canvas history and undo/redo operations:
 -Undo/redo operations with selection clearing callbacks
 -History validation (canUndo, canRedo availability checks)
 -Parent component integration via callback exposure
-
-z
